@@ -94,7 +94,7 @@ A binary classifier predicting:
 - `true_healthy`
 - `not_true_healthy`
 
-### **3. Responder Detection (Ongoing)**
+### **3. Responder Detection**
 Using LSTM embeddings + UMAP/PCA clustering.
 
 ---
