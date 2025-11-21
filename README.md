@@ -1,5 +1,5 @@
 
-# AI-READI CGM Time-Series Classification  
+# Time-Series Classification  
 **Deep Learning Framework for Modeling Glucose Dynamics and Metabolic Health**
 
 ## Overview
