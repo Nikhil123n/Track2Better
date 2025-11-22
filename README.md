@@ -51,27 +51,14 @@ The primary objective of this project is to build a **supervised LSTM-based clas
 
 ## Data Description
 
-The AI-READI CGM dataset includes:
-- **1067 participants**
-- **5-minute interval blood glucose records**
-- **5–15 days of recordings per participant**
-- **Demographics (e.g., age)**
-- **Multimodal sensor features**  
-- **Demographic attributes**  
-- **Study group labels**
-
-Extracted features per timestamp include:
-- `blood_glucose_value`
-- `glucose_change_rate`
-- `timestamp`, `time_index`
-- `sin(hour)`, `cos(hour)` for circadian modeling
-- Rolling mean & rolling standard deviation features
-
-Each participant has **2069 aligned time-series points** after filtering and interpolation.
-
-The classification target:  
-`study_group` → {healthy, T2D-lifestyle, T2D-oral, T2D-insulin}
-
+- **Official Dataset Website:**  
+  https://aireadi.org/
+  
+- **Dataset Description:**  
+  The AI-READI dataset provides multi-modal health sensor data including  
+  Continuous Glucose Monitoring (CGM), activity, sleep, and physiological signals  
+  collected from 1067 participants across several metabolic health groups.
+  
 ---
 
 ## Feature Engineering
@@ -133,14 +120,17 @@ python models/embeddings_umap.py
 
 ---
 
-## Citation
+## Team Members
 
-```
-```
+| Name                | GitHub Username       |
+|---------------------|------------------------|
+| **Nikhil Arethiya** | Nikhil123n             |
+| **Prakruthi Koteshwar** | Prakruthi19         |
+| **Aishwarya Sajjan** | aishwaryasajjan77     |
 
 ---
 
 ## Contributing
-Pull requests and suggestions are welcome.
+Pull requests, suggestions, and improvements are welcome.
 
 ---
