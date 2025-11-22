@@ -31,6 +31,7 @@ The primary objective of this project is to build a **supervised LSTM-based clas
 ├── preprocessing/
 │   ├── load_cgm_data.py
 │   ├── feature_engineering.py
+│   ├── cgm_batch_creation.py
 │   └── circadian_features.py
 │
 ├── models/
@@ -117,7 +118,7 @@ pip install -r requirements.txt
 
 ### Preprocess Data
 ```bash
-python preprocessing/load_cgm_data.py
+python preprocessing/cgm_batch_creation.py
 ```
 
 ### Train LSTM
