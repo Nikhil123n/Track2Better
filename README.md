@@ -3,18 +3,19 @@
 **Deep Learning Framework for Modeling Glucose Dynamics and Metabolic Health**
 
 ## Overview
-This repository contains the full pipeline for processing, feature engineering, and modeling Continuous Glucose Monitoring (CGM) time-series data from the **AI-READI** dataset. The dataset includes **1067 participants**, each with 5-minute interval glucose readings collected over multiple days.
-
+This repository implements a **multimodal deep-learning pipeline** for analyzing **AI-READI** time-series data, including **Continuous Glucose Monitoring (CGM)** signals and physiological features such as:
+- Heart Rate  
+- Respiration Rate  
+- Stress Levels  
+- Physical Activity  
+- Sleep Patterns
+  
 The primary objective of this project is to build a **supervised LSTM-based classification model** that learns glucose dynamics and predicts:
 
 - **Healthy**
 - **Type-2 Diabetes (Lifestyle Controlled)**
 - **Type-2 Diabetes (Oral Medication)**
 - **Type-2 Diabetes (Insulin)**
-
-As part of the extended research direction, we also identify:
-- **True-healthy vs. Non-true healthy participants** using KMeans clustering on glucose variability metrics.
-- **Responder vs. Non-responder patterns** using LSTM embeddings and representation learning.
 
 ---
 
@@ -50,10 +51,13 @@ As part of the extended research direction, we also identify:
 ## Data Description
 
 The AI-READI CGM dataset includes:
+- **1067 participants**
 - **5-minute interval blood glucose records**
 - **5–15 days of recordings per participant**
 - **Demographics (e.g., age)**
-- **Condition labels**
+- **Multimodal sensor features**  
+- **Demographic attributes**  
+- **Study group labels**
 
 Extracted features per timestamp include:
 - `blood_glucose_value`
