@@ -1,0 +1,39 @@
+# Python bytecode / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+.python-version
+
+# IDE / editor configs
+.vscode/
+.idea/
+*.code-workspace
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Model artifacts / big outputs
+models/
+**/models/
+*.h5
+*.hdf5
+*.keras
+*.ckpt
+*.tfrecord
+
+# Numpy arrays / temp artifacts
+*.npy
+*.npz
+
+# Jupyter / testing
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
