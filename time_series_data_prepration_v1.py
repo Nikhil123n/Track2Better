@@ -1,3 +1,5 @@
+__CURR_FILE__ = "time_series_data_prepration_v1"
+
 import logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
@@ -10,16 +12,23 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# === FEATURE CONFIG ===
-PILOT_ROOT_DATA_PATH = "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/"  # change this to your own path
-MANIFEST_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "wearable_blood_glucose/manifest.tsv")
-CLEANED_DATA_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "cleaned_data2/")
-# Load the summarized metrics CSV
-SUMMARY_CSV = os.path.join(CLEANED_DATA_PATH, "summarized_metrics_all_participants.csv")
+# === PATH CONFIG (centralized via paths.py) ===
+# All dataset paths are defined in paths.py so this script is portable
+from paths import PILOT_ROOT_DATA_PATH, MANIFEST_PATH, CLEANED_DATA_PATH, SUMMARY_PATH, AUGMENTED_OUTPUT_DIR, LOG_DIR
 # Output paths
 # LABELED_OUTPUT_DIR = os.path.join(CLEANED_DATA_PATH, "cleaned_batches_labeled")
-AUGMENTED_OUTPUT_DIR = os.path.join(CLEANED_DATA_PATH, "augmented_batches")
 
+# Create logs directory and Ensure logs directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG to see more details
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, __CURR_FILE__ + ".log")),  # Save logs to file
+        logging.StreamHandler()  # Also print to console
+    ]
+)
+logging.info(f"Logs will be saved to: {LOG_DIR}")
 
 # === Phase 1: Base Dataset Preparation ===
 # Step 1: Relabel All Batches Using Final Labels
@@ -138,10 +147,10 @@ def process_and_augment_batches():
         os.makedirs(AUGMENTED_OUTPUT_DIR, exist_ok=True)
 
         # Load label map with error handling
-        if not os.path.exists(SUMMARY_CSV):
-            raise FileNotFoundError(f"Summary CSV not found: {SUMMARY_CSV}")
+        if not os.path.exists(SUMMARY_PATH):
+            raise FileNotFoundError(f"Summary CSV not found: {SUMMARY_PATH}")
         
-        label_df = pd.read_csv(SUMMARY_CSV)
+        label_df = pd.read_csv(SUMMARY_PATH)
         # Validate required columns exist
         if 'participant_id' not in label_df.columns or 'study_group_cleaned' not in label_df.columns:
             raise ValueError("Required columns missing from summary CSV")
@@ -206,7 +215,7 @@ def process_and_augment_batches():
 
 
 # === Visualization: Individual Participant Glucose Dynamics ===
-def plot_glucose_dynamics(file_path, participant_id):
+def plot_glucose_dynamics(file_path, participant_id, save=True):
     """Plot glucose dynamics for a specific participant."""
     try:
         # Load one augmented batch
@@ -251,6 +260,21 @@ def plot_glucose_dynamics(file_path, participant_id):
         plt.title("Circadian Context")
 
         plt.tight_layout()
+
+        # SAVE PLOT
+        if save:
+            save_dir = os.path.join(LOG_DIR, "participant_plots")
+            os.makedirs(save_dir, exist_ok=True)
+
+            outfile = os.path.join(
+                save_dir,
+                f"participant_{participant_id}_glucose_dynamics.png"
+            )
+
+            plt.savefig(outfile, dpi=300, bbox_inches="tight")
+            logging.info(f"[SAVED] Glucose dynamics plot saved to: {outfile}")
+
+        # SHOW PLOT
         plt.show()
         
     except Exception as e:
@@ -268,6 +292,9 @@ def plot_feature_distributions(file_path):
         exclude_cols = ['participant_id', 'time_index', 'date', 'time', 'study_group']
         all_features = [col for col in df.columns if col not in exclude_cols and pd.api.types.is_numeric_dtype(df[col])]
 
+        save_dir = os.path.join(LOG_DIR, "participant_plots")
+        os.makedirs(save_dir, exist_ok=True)
+
         # Plot each feature individually by study group
         for feature in all_features:
             plt.figure(figsize=(8, 5))
@@ -275,6 +302,12 @@ def plot_feature_distributions(file_path):
             plt.title(f"{feature} by Study Group")
             plt.xticks(rotation=20)
             plt.tight_layout()
+
+            # === SAVE PLOT ===
+            out_path = os.path.join(save_dir, f"{feature}_by_study_group.png")
+            plt.savefig(out_path, dpi=300, bbox_inches="tight")
+            logging.info(f"[SAVED] Feature distribution plot saved: {out_path}")
+            
             plt.show()
             
     except Exception as e:
