@@ -1,3 +1,5 @@
+__CURR_FILE__ = "xgboost_relabel_truehealthy v2"
+
 """
 ===============================================================================
 Final Project – Multimodal Time-Series Classification and Anomaly Detection Using the AI-READI Dataset
@@ -52,15 +54,20 @@ from imblearn.over_sampling import SMOTE
 import xgboost as xgb
 import matplotlib.pyplot as plt
 
-# === Logging setup ===
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+# === PATH & LOGGING SETUP ===
+from paths import SUMMARY_PATH, LOG_DIR
 
-# === PATH SETUP ===
-PILOT_ROOT_DATA_PATH = os.getenv(
-    'PILOT_ROOT_DATA_PATH', 
-    "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/"
+# Create logs directory and Ensure logs directory exists
+os.makedirs(LOG_DIR, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG to see more details
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler(os.path.join(LOG_DIR, __CURR_FILE__ + ".log")),  # Save logs to file
+        logging.StreamHandler()  # Also print to console
+    ]
 )
-SUMMARY_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "cleaned_data2", "summarized_metrics_all_participants.csv")
+logging.info(f"Logs will be saved to: {LOG_DIR}")
 
 # === CONFIGURATION ===
 MAX_ITERATIONS = 10  # Prevent infinite loops
@@ -247,8 +254,15 @@ def evaluate_model(model, X_test, y_test, le):
         try:
             cm = confusion_matrix(y_test, y_pred)
             disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=le.classes_)
-            disp.plot(cmap='Blues')
-            plt.title("Confusion Matrix")
+
+            plt.figure(figsize=(10, 8))   # larger window
+            disp.plot(cmap="Blues", values_format='d')
+
+            plt.xticks(rotation=45, ha='right')   # rotate labels to prevent overlap
+            plt.yticks(rotation=0)                # keep Y-axis readable
+            plt.title("Confusion Matrix", fontsize=16)
+
+            plt.tight_layout()                    # prevent clipping of labels
             plt.show()
         except Exception as e:
             logging.warning(f"Could not display confusion matrix: {str(e)}")
@@ -359,6 +373,8 @@ def main():
     - No misclassifications remain
     - Convergence detected
     - Maximum iterations reached
+
+    Before executing, it requires that `cluster_true_healthy v2.py` has already run and
     """
     
     logging.info("Starting iterative relabeling process...")
@@ -444,4 +460,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
