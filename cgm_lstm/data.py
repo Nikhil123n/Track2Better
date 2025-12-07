@@ -23,6 +23,8 @@ RANDOM_SEED = 42
 np.random.seed(RANDOM_SEED)
 tf.random.set_seed(RANDOM_SEED)
 
+from paths import PILOT_ROOT_DATA_PATH, AUGMENTED_OUTPUT_DIR
+
 
 @dataclass
 class Config:
@@ -40,8 +42,8 @@ class Config:
     """
 
     # Paths
-    base_path: str = os.getenv('AI_READI_PATH', 'C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/')
-    augmented_dir: str = os.getenv('AUGMENTED_DIR', 'C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/cleaned_data2/augmented_batches/')
+    base_path: str = os.getenv('AI_READI_PATH', PILOT_ROOT_DATA_PATH)
+    augmented_dir: str = os.getenv('AUGMENTED_DIR', AUGMENTED_OUTPUT_DIR)
     models_base_dir: str = './models'
 
     # Data
