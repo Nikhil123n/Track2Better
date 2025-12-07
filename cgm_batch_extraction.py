@@ -5,12 +5,16 @@ from datetime import datetime, timedelta
 import os
 import logging
 
+from paths import LOG_DIR, CLEANED_DATA_PATH  # we defined this earlier in paths.py
+
 # Configure logging
+os.makedirs(LOG_DIR, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,  # Change to DEBUG to see more details
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("data_processing.log"),  # Save logs to file
+        logging.FileHandler(os.path.join(LOG_DIR, "cgm_batch_extraction.log")),  # Save logs to file
         logging.StreamHandler()  # Also print to console
     ]
 )
@@ -42,10 +46,10 @@ def flatten_json(y):
     return out
 
 # Helper Function: Read and Flatten JSON for a given Participant
-def get_flatten_dict_from_path(pid, dfm, pilot_data_root):
+def get_flatten_dict_from_path(pid, dfm, PILOT_ROOT_DATA_PATH):
     """Read and flatten CGM data for a participant."""
     pid_cgm = dfm[dfm['participant_id'] == pid]['glucose_filepath'].values[0]
-    cgm_path = os.path.join(pilot_data_root, pid_cgm)
+    cgm_path = os.path.join(PILOT_ROOT_DATA_PATH, pid_cgm)
     
     logging.info(f"Opening file: {cgm_path}")
     try:
@@ -63,13 +67,13 @@ def get_flatten_dict_from_path(pid, dfm, pilot_data_root):
 
 
 # Main Function: Extract and Curate Batches
-def extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH, batch_size=100, min_records=2138, participant_filter="valid"):
+def extract_and_curate_batches(MANIFEST_PATH, PILOT_ROOT_DATA_PATH, OUTPUT_PATH, batch_size=100, min_records=2138, participant_filter="valid"):
     """
     Extract and curate blood glucose data in batches.
 
     Args:
         MANIFEST_PATH (str): Path to the manifest.tsv file.
-        PILOT_DATA_ROOT (str): Root directory of the dataset.
+        PILOT_ROOT_DATA_PATH (str): Root directory of the dataset.
         OUTPUT_PATH (str): Directory to save output batch and combined CSV files.
         batch_size (int): Number of participants per batch.
         min_records (int): Minimum required glucose readings per participant.
@@ -79,9 +83,9 @@ def extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH, batc
 
     # Load Required Files
     dfm = pd.read_csv(MANIFEST_PATH, sep='\t')
-    csv_path_low_high_counts = os.path.join(PILOT_DATA_ROOT, "cleaned_data", "low_high_counts.csv")    
+    csv_path_low_high_counts = os.path.join(CLEANED_DATA_PATH, "low_high_counts.csv")    
     df_low_high_counts = pd.read_csv(csv_path_low_high_counts)
-    df_participants = pd.read_csv(os.path.join(PILOT_DATA_ROOT, "participants.tsv"), sep='\t')
+    df_participants = pd.read_csv(os.path.join(PILOT_ROOT_DATA_PATH, "participants.tsv"), sep='\t')
 
     # Filter Participants with Valid Records
     if participant_filter == "valid":
@@ -107,7 +111,7 @@ def extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH, batc
         
         # Inner loop to process each participant in the batch
         for pid in batch_pids:
-            records = get_flatten_dict_from_path(pid, dfm, PILOT_DATA_ROOT)
+            records = get_flatten_dict_from_path(pid, dfm, PILOT_ROOT_DATA_PATH)
             if len(records) == 0:
                 continue
 
@@ -150,14 +154,28 @@ def extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH, batc
 
 
 # Example usage
-if __name__ == "__main__":
-    MANIFEST_PATH = "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/wearable_blood_glucose/manifest.tsv"
-    PILOT_DATA_ROOT = "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/"
-    OUTPUT_PATH_VALID = "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/cleaned_data2"
-    OUTPUT_PATH_INVALID = "C:/Users/nikhi/Box/AI-READI/nikhil working dataset/dataset/uncleaned_data"
+from paths import (
+    MANIFEST_PATH,
+    PILOT_ROOT_DATA_PATH,
+    OUTPUT_PATH_VALID,
+    OUTPUT_PATH_INVALID,
+)
 
+if __name__ == "__main__":
     # For valid participants (Low/High == 0)
-    extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH_VALID, batch_size=100, min_records=2138)
+    extract_and_curate_batches(
+        MANIFEST_PATH,
+        PILOT_ROOT_DATA_PATH,
+        OUTPUT_PATH_VALID,
+        batch_size=100,
+        min_records=2138,
+    )
 
     # For invalid participants (Low/High != 0)
-    extract_and_curate_batches(MANIFEST_PATH, PILOT_DATA_ROOT, OUTPUT_PATH_INVALID, batch_size=100, participant_filter="invalid")
+    extract_and_curate_batches(
+        MANIFEST_PATH,
+        PILOT_ROOT_DATA_PATH,
+        OUTPUT_PATH_INVALID,
+        batch_size=100,
+        participant_filter="invalid",
+    )
