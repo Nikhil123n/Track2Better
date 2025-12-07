@@ -15,7 +15,7 @@ PILOT_ROOT_DATA_PATH = os.path.join(PROJECT_ROOT, "dataset")
 WEARABLE_BG_DIR = os.path.join(PILOT_ROOT_DATA_PATH, "wearable_blood_glucose")
 CLEANED_DATA_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "cleaned_data2")
 UNCLEANED_DATA_DIR = os.path.join(PILOT_ROOT_DATA_PATH, "uncleaned_data")
-LOG_DIR = os.path.join(PILOT_ROOT_DATA_PATH, "logs")
+LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 
 # Important files
 MANIFEST_PATH = os.path.join(WEARABLE_BG_DIR, "manifest.tsv")
