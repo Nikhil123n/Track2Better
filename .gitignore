@@ -18,9 +18,11 @@ __pycache__/
 Thumbs.db
 
 # Logs
+logs/
 *.log
 
 # Model artifacts / big outputs
+dataset/
 models/
 **/models/
 *.h5
