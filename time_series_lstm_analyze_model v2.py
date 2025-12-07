@@ -379,9 +379,9 @@ def main():
         specific_folder = None
         if len(sys.argv) > 1:
             specific_folder = sys.argv[1]
-            print(f"🎯 Using manually specified folder: {specific_folder}")
+            print(f"Using manually specified folder: {specific_folder}")
         else:
-            print("🔍 Auto-detecting latest model folder...")
+            print("Auto-detecting latest model folder...")
         
         # Manual folder override (uncomment and modify as needed)
         # specific_folder = "model_20250729_170536"  # Replace with your folder name
@@ -395,28 +395,28 @@ def main():
         # Run complete enhanced analysis
         results = analyzer.run_complete_analysis()
         
-        print(f"\n🎉 SUCCESS! Enhanced LSTM analysis complete!")
-        print(f"📁 Analyzed model: {results['model_folder']}")
-        print(f"📂 All results saved to: {results['results_location']}")
-        print("📊 Multiple feature importance methods validated!")
-        print("🏥 Clinically relevant insights generated!")
-        print("📝 All files ready for research paper!")
+        print(f"\n SUCCESS! Enhanced LSTM analysis complete!")
+        print(f"Analyzed model: {results['model_folder']}")
+        print(f"All results saved to: {results['results_location']}")
+        print("Multiple feature importance methods validated!")
+        print("Clinically relevant insights generated!")
+        print("All files ready for research paper!")
         
         # Show usage instructions
-        print(f"\n💡 USAGE INSTRUCTIONS:")
-        print(f"   📋 Automatic (latest): python {os.path.basename(__file__)}")
-        print(f"   🎯 Manual: python {os.path.basename(__file__)} model_20250729_143022")
+        print(f"\ USAGE INSTRUCTIONS:")
+        print(f"   Automatic (latest): python {os.path.basename(__file__)}")
+        print(f"   Manual: python {os.path.basename(__file__)} model_20250729_143022")
         
     except Exception as e:
         logger.error(f"Enhanced analysis failed: {e}")
-        print("\n❌ Analysis failed. Please ensure:")
+        print("\n Analysis failed. Please ensure:")
         print("1. Model folder exists with required files:")
         print("   • best_model.keras (or lstm_binary_model.keras)")
         print("   • X_lstm.npy, y_lstm_binary.npy")
         print("2. Required packages: tensorflow, sklearn, matplotlib, seaborn")
         print("3. Optional packages: shap, lime (for full analysis)")
         print("4. Sufficient memory for computations")
-        print(f"\n📋 Usage: python {os.path.basename(__file__)} [model_folder_name]")
+        print(f"\nUsage: python {os.path.basename(__file__)} [model_folder_name]")
 
 
 if __name__ == "__main__":
