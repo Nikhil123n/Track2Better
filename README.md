@@ -3,47 +3,53 @@
 **Deep Learning Framework for Modeling Glucose Dynamics and Metabolic Health**
 
 ## Overview
-This repository implements a **multimodal deep-learning pipeline** for analyzing **AI-READI** time-series data, including **Continuous Glucose Monitoring (CGM)** signals and physiological features such as:
-- Heart Rate  
-- Respiration Rate  
-- Stress Levels  
-- Physical Activity  
-- Sleep Patterns
-  
-The primary objective of this project is to build a **supervised LSTM-based classification model** that learns glucose dynamics and predicts:
+This repository implements a deep-learning pipeline for analyzing **AI-READI** time-series data, primarily using **Continuous Glucose Monitoring (CGM)** signals and engineered temporal features.
 
-- **Healthy**
-- **Type-2 Diabetes (Lifestyle Controlled)**
-- **Type-2 Diabetes (Oral Medication)**
-- **Type-2 Diabetes (Insulin)**
+The primary objective of this project is to build a **hybrid supervised-unsupervised binary classification model**, for distinguishing:
+- True Healthy  
+- Pre-diabetes / Non-Healthy  
+
+using sequence models such as LSTM and complementary relabeling using XGBoost.
+
+This replaces the earlier planned multiclass physiological modeling pipeline.
 
 ---
 
 ## Project Structure
 
 ```
-├── data/
-│   ├── batch_0_100.csv
-│   ├── batch_100_200.csv
-│   ├── batch_200_300.csv
-│   └── all_participants_blood_glucose_values.csv
+├── cgm_batch_extraction.py
+├── cluster_true_healthy v2.py
+├── xgboost_relabel_truehealthy v2.py
+├── time_series_data_prepration_v1.py
+├── time_series_lstm_analyze_model v2.py
+├── time_series_lstm_analyze_model v2.py
+├── paths.py
+├── lstm_pipeline v1.py
+├── cgm_lstm/
+│   ├── data.py
+│   ├── model.py
+│   ├── pipeline.py
+│   └── viz.py
 │
-├── preprocessing/
-│   ├── load_cgm_data.py
-│   ├── feature_engineering.py
-│   ├── cgm_batch_creation.py
-│   └── circadian_features.py
+├── dataset/
+│   ├── cleaned_data2/
+│   │   ├── batch_*.csv
+│   │   ├── augmented_batches/
+│   │   └── summarized_metrics_all_participants.csv
+│   ├── uncleaned_data/
+│   └── wearable_blood_glucose/
+│       └── manifest.tsv
 │
 ├── models/
-│   ├── lstm_classifier.py
-│   ├── training_pipeline.py
-│   └── embeddings_umap.py
 │
-├── results/
-│   ├── model_weights/
-│   ├── classification_reports/
-│   └── plots/
+├── logs/
+│   ├── time_series_lstm_analyze_model v2.log
+│   ├── xgboost_relabel_truehealthy v2.log
+│   └── participant_plots/
 │
+├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
@@ -53,41 +59,55 @@ The primary objective of this project is to build a **supervised LSTM-based clas
 
 - **Official Dataset Website:**  
   https://aireadi.org/
-  
+
 - **Dataset Description:**  
-  The AI-READI dataset provides multi-modal health sensor data including  
-  Continuous Glucose Monitoring (CGM), activity, sleep, and physiological signals  
-  collected from 1067 participants across several metabolic health groups.
-  
+  The AI-READI dataset provides multi-modal health sensor data including Continuous Glucose Monitoring (CGM), activity, sleep, and physiological signals collected from 1067 participants across several metabolic groups.
+
+This project specifically uses the CGM time-series component.
+
 ---
 
 ## Feature Engineering
 
-This project includes:
-- Time alignment across participants  
-- Circadian features (sin/cos hour)  
-- Variability measures (rolling mean/std)  
-- Dynamic features (change rate, volatility)
+This pipeline applies structured feature engineering on CGM sequences, including:
+
+- Rolling mean and standard deviation (1-hour window)  
+- Glucose derivatives (difference, acceleration)  
+- Circadian rhythm features (sin/hour, cos/hour)  
+- Night and meal-time flags  
+- Day fraction encoding  
+- Change rate features  
+
+These engineered features are used to build the final LSTM sequences.
 
 ---
 
 ## Modeling Approach
 
-### **1. Baseline LSTM Classifier**
-- Input: Raw glucose sequence + engineered features  
-- Architecture:
-  - 2-layer LSTM  
-  - Dropout  
-  - Fully connected layers  
-- Output: 4-class prediction
+### 1. Binary LSTM Classifier
+Predicts:
+- true_healthy  
+- pre_diabetes_lifestyle  
 
-### **2. True-Healthy Classifier**
-A binary classifier predicting:
-- `true_healthy`
-- `not_true_healthy`
+using a two-layer LSTM model with:
+- train/val/test splitting  
+- early stopping  
+- validation-calibrated classification threshold  
+- class-weight balancing  
 
-### **3. Responder Detection**
-Using LSTM embeddings + UMAP/PCA clustering.
+### 2. XGBoost Relabeling Pipeline
+A separate iterative relabeling pipeline:
+- Trains an XGBoost classifier on summary metrics  
+- Identifies and relabels inconsistent participants  
+- Saves confusion matrix and logs  
+- Supports multi-stage refinement of study group labels  
+
+### 3. Model Analysis
+The analysis script provides:
+- ROC, PR, MCC, Balanced Accuracy  
+- SHAP and LIME explanations (if available)  
+- Temporal pattern interpretation  
+- Method comparison across importance metrics  
 
 ---
 
@@ -103,34 +123,50 @@ pip install -r requirements.txt
 
 ## Running the Pipeline
 
-### Preprocess Data
+### 1. Extract CGM JSON into CSV Batches
 ```bash
-python preprocessing/cgm_batch_creation.py
+python cgm_batch_extraction.py
 ```
 
-### Train LSTM
+### 2. Run Clustering Algoithm
 ```bash
-python models/training_pipeline.py
+python "cluster_true_healthy v2.py"
 ```
 
-### Generate Embeddings
+### 3. Run XGBoost Relabeling
 ```bash
-python models/embeddings_umap.py
+python "xgboost_relabel_truehealthy v2.py"
+```
+
+### 4. Augment and Engineer Features
+```bash
+python time_series_data_prepration_v1.py
+```
+
+### 5. Train Binary LSTM Model
+```bash
+python lstm_pipeline_v1.py
+```
+
+### 6. Analyze Trained Model
+```bash
+python "time_series_lstm_analyze_model v2.py"
+```
+
+
 ```
 
 ---
 
 ## Team Members
 
-| Name                | GitHub Username       |
-|---------------------|------------------------|
-| **Nikhil Arethiya** | Nikhil123n             |
-| **Prakruthi Koteshwar** | Prakruthi19         |
-| **Aishwarya Sajjan** | aishwaryasajjan77     |
+| Name                    | GitHub Username  |
+|-------------------------|------------------|
+| Nikhil Arethiya         | Nikhil123n       |
+| Prakruthi Koteshwar     | Prakruthi19      |
+| Aishwarya Sajjan        | aishwaryasajjan77 |
 
 ---
 
-## Contributing
+## Contributing  
 Pull requests, suggestions, and improvements are welcome.
-
----
