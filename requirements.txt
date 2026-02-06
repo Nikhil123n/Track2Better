@@ -11,3 +11,4 @@ scipy
 shap
 lime
 kneed
+statsmodels
