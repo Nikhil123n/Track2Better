@@ -163,6 +163,7 @@ from paths import (
 
 if __name__ == "__main__":
     # For valid participants (Low/High == 0)
+    # 2138 records = 7.42 days of CGM data at 5-minute intervals
     extract_and_curate_batches(
         MANIFEST_PATH,
         PILOT_ROOT_DATA_PATH,
