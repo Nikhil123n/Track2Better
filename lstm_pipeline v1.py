@@ -68,6 +68,10 @@ def main() -> None:
         list_model_versions()
 
         config = Config()
+        config.use_cross_validation = True
+        config.cv_n_splits = 5
+        config.cv_save_fold_models = False  # keep off initially
+        
         pipeline = LSTMPipeline(config)
         results = pipeline.run_full_pipeline()
 
