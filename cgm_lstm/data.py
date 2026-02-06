@@ -63,6 +63,12 @@ class Config:
     val_size_from_train: float = 0.2 # fraction of TRAIN to use as VAL
     early_stopping_patience: int = 8
 
+    # Cross-validation (participant-level)
+    use_cross_validation: bool = False
+    cv_n_splits: int = 5
+    cv_shuffle: bool = True
+    cv_save_fold_models: bool = False  # saves best_model.keras per fold (optional)
+
     # Imbalance handling
     use_smote: bool = False            # OFF by default (sequence aware)
     use_class_weights: bool = True     # ON by default
@@ -72,6 +78,21 @@ class Config:
 
     # Seed
     random_seed: int = RANDOM_SEED
+
+    # Diagnostics
+    run_multicollinearity_check: bool = True
+    corr_threshold: float = 0.95
+    vif_threshold: float = 10.0
+    max_corr_pairs_to_log: int = 25
+    save_collinearity_heatmap: bool = True
+
+    # Calibration
+    calibration_bins: int = 10
+
+    # Threshold sweep (sensitivity analysis)
+    thr_sweep_min: float = 0.05
+    thr_sweep_max: float = 0.95
+    thr_sweep_points: int = 19
 
     def __post_init__(self):
         """Finalize configuration after initialization.
@@ -83,7 +104,7 @@ class Config:
         """
         if self.selected_features is None:
             self.selected_features = [
-                'glucose_accel',
+                'glucose_accel',                
                 'glucose_change_rate',
                 'cos_hour',
                 'blood_glucose_value',
