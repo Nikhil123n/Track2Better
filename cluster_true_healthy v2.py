@@ -5,8 +5,6 @@ import logging
 import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
-from tslearn.clustering import TimeSeriesKMeans
-from tslearn.preprocessing import TimeSeriesScalerMeanVariance
 import matplotlib.pyplot as plt
 import seaborn as sns
 import warnings
@@ -25,10 +23,7 @@ clusters healthy participants, and identifies a 'true healthy' cluster with comp
 """
 
 # =====================================================================
-# === Logging setup ===
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
-
-# === Define PATH SETUP ===
+# === PATH SETUP (Logging configured below after directory creation) ===
 from paths import (
     PILOT_ROOT_DATA_PATH,
     MANIFEST_PATH,
@@ -61,7 +56,7 @@ def calculate_mage(glucose_values):
     """Calculate Mean Amplitude of Glycemic Excursions (MAGE)"""
     if len(glucose_values) < 2: 
         return np.nan
-    mean_glucose = np.mean(glucose_values)
+    
     std_glucose = np.std(glucose_values)
     peaks, _ = find_peaks(glucose_values)
     troughs, _ = find_peaks(-glucose_values)
@@ -98,48 +93,74 @@ def calculate_conga(glucose_values, lag_steps=12):
 # =====================================================================
 # === ENHANCED VISUALIZATION FUNCTIONS ===
 
-def save_plot_1_cluster_highlight(X_scaled, labels, healthy_df):
-    """Save Plot 1: Cluster 0 Highlighted"""
+def save_plot_1_cluster_highlight(X_scaled, labels, n_clusters, true_healthy_cluster_id):
+    """Save Plot 1: True Healthy Cluster Highlighted"""
     plt.figure(figsize=(12, 8))
-    
-    # Plot all clusters in light gray first
-    for i in range(1, 5):
+
+    # Plot all non-healthy clusters in light gray
+    for i in range(n_clusters):
+        if i == true_healthy_cluster_id:
+            continue
         mask = labels == i
         if np.any(mask):
-            plt.scatter(X_scaled[mask, 0], X_scaled[mask, 1], 
-                       c='lightgray', alpha=0.4, s=30)
+            plt.scatter(
+                X_scaled[mask, 0],
+                X_scaled[mask, 1],
+                color='lightgray',
+                alpha=0.4,
+                s=30
+            )
     
-    # Highlight Cluster 0 (True Healthy) in bold red
-    mask_0 = labels == 0
-    plt.scatter(X_scaled[mask_0, 0], X_scaled[mask_0, 1], 
-               c='red', s=100, alpha=0.8, label='True Healthy (Cluster 0)', 
-               edgecolors='darkred', linewidth=2)
-    
-    plt.title('True Healthy Cluster Highlighted\n(Cluster 0 in Red)', fontsize=16, fontweight='bold')
+    # Highlight True Healthy Cluster in bold red
+    mask_th = labels == true_healthy_cluster_id
+    plt.scatter(
+        X_scaled[mask_th, 0],
+        X_scaled[mask_th, 1],
+        color='red',
+        s=100,
+        alpha=0.8,
+        label=f'True Healthy (Cluster {true_healthy_cluster_id})',
+        edgecolors='darkred',
+        linewidth=2
+    )
+
+    plt.title(
+        f'True Healthy Cluster Highlighted\n'
+        f'(Cluster {true_healthy_cluster_id} in Red)',
+        fontsize=16,
+        fontweight='bold'
+    )
     plt.xlabel('Mean Blood Glucose (Scaled)', fontsize=12)
     plt.ylabel('Std Dev Blood Glucose (Scaled)', fontsize=12)
     plt.legend(fontsize=12)
     plt.grid(True, alpha=0.3)
-    
-    # Add statistics box
-    n_true_healthy = np.sum(mask_0)
+
+    # Stats box
+    n_true_healthy = np.sum(mask_th)
     total_healthy = len(labels)
     percentage = (n_true_healthy / total_healthy) * 100
     textstr = f'True Healthy: {n_true_healthy}/{total_healthy}\n({percentage:.1f}%)'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-    plt.text(0.02, 0.98, textstr, transform=plt.gca().transAxes, fontsize=12,
-             verticalalignment='top', bbox=props)
-    
+    plt.text(
+        0.02, 0.98,
+        textstr,
+        transform=plt.gca().transAxes,
+        fontsize=12,
+        verticalalignment='top',
+        bbox=props
+    )
+
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "01_cluster_highlight.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 01_cluster_highlight.png")
 
+
 def save_plot_2_traditional_clusters(X_scaled, labels):
     """Save Plot 2: Traditional Cluster View"""
     plt.figure(figsize=(10, 8))
     scatter = plt.scatter(X_scaled[:, 0], X_scaled[:, 1], c=labels, 
-                         cmap='viridis', s=60, alpha=0.7)
+                        cmap='viridis', s=60, alpha=0.7)
     plt.title('All Clusters - Traditional View', fontsize=16, fontweight='bold')
     plt.xlabel('Mean Blood Glucose (Scaled)', fontsize=12)
     plt.ylabel('Std Dev Blood Glucose (Scaled)', fontsize=12)
@@ -151,61 +172,42 @@ def save_plot_2_traditional_clusters(X_scaled, labels):
     plt.close()
     logging.info("Saved: 02_traditional_clusters.png")
 
-# def save_plot_3_pca_view(X_scaled, labels):
-#     """Save Plot 3: PCA View"""
-#     plt.figure(figsize=(10, 8))
-    
-#     # Apply PCA for better visualization
-#     pca = PCA(n_components=2)
-#     X_pca = pca.fit_transform(X_scaled.reshape(X_scaled.shape[0], -1))
-    
-#     # Plot other clusters in gray
-#     for i in range(1, 5):
-#         mask = labels == i
-#         if np.any(mask):
-#             plt.scatter(X_pca[mask, 0], X_pca[mask, 1], 
-#                        c='lightgray', alpha=0.4, s=30)
-    
-#     # Highlight Cluster 0
-#     mask_0 = labels == 0
-#     plt.scatter(X_pca[mask_0, 0], X_pca[mask_0, 1], 
-#                c='red', s=100, alpha=0.8, label='True Healthy', 
-#                edgecolors='darkred', linewidth=2)
-    
-#     plt.title('PCA View - True Healthy Cluster', fontsize=16, fontweight='bold')
-#     plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)', fontsize=12)
-#     plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)', fontsize=12)
-#     plt.legend(fontsize=12)
-#     plt.grid(True, alpha=0.3)
-    
-#     plt.tight_layout()
-#     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "03_pca_view.png"), dpi=300, bbox_inches='tight')
-#     plt.close()
-#     logging.info("Saved: 03_pca_view.png")
 
-def save_plot_3_pca_view(X_scaled, labels):
+def save_plot_3_pca_view(X_scaled, labels, n_clusters, true_healthy_cluster_id):
     """Save Plot 3: PCA View with different colors for each cluster"""
     plt.figure(figsize=(12, 8))
     
     # Apply PCA for better visualization
     pca = PCA(n_components=2)
-    X_pca = pca.fit_transform(X_scaled.reshape(X_scaled.shape[0], -1))
-    
-    # Define colors for each cluster
-    colors = ['red', 'blue', 'green', 'orange', 'purple']
-    cluster_names = ['CGM-Healthy', 'Cluster 1', 'Cluster 2', 'Cluster 3', 'Cluster 4']
+    X_pca = pca.fit_transform(X_scaled)
+
+    colors = []
+    cluster_names = []
+
+    cmap = plt.cm.tab10
+
+    for i in range(n_clusters):
+        if i == true_healthy_cluster_id:
+            colors.append('red')
+            cluster_names.append('CGM-Healthy')
+        else:
+            colors.append(cmap(i % cmap.N))
+            cluster_names.append(f'Cluster {i}')
     
     # Plot each cluster with different colors
-    for i in range(5):
+    for i in range(n_clusters):
         mask = labels == i
         if np.any(mask):
-            plt.scatter(X_pca[mask, 0], X_pca[mask, 1], 
-                       c=colors[i], 
-                       s=100 if i == 0 else 60,  # Larger points for True Healthy
-                       alpha=0.8 if i == 0 else 0.7, 
-                       label=cluster_names[i],
-                       edgecolors='darkred' if i == 0 else 'black', 
-                       linewidth=2 if i == 0 else 1)
+            plt.scatter(
+                X_pca[mask, 0],
+                X_pca[mask, 1],
+                color=colors[i],   # <-- FIX
+                s=100 if i == true_healthy_cluster_id else 60,
+                alpha=0.8 if i == true_healthy_cluster_id else 0.7,
+                label=cluster_names[i],
+                edgecolors='darkred' if i == true_healthy_cluster_id else 'black',
+                linewidth=2 if i == true_healthy_cluster_id else 1
+            )
     
     plt.title('PCA View - All Clusters with Different Colors', fontsize=16, fontweight='bold')
     plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)', fontsize=12)
@@ -214,12 +216,14 @@ def save_plot_3_pca_view(X_scaled, labels):
     plt.grid(True, alpha=0.3)
     
     # Add cluster statistics as text box
-    n_clusters = len(np.unique(labels))
-    textstr = f'Total Clusters: {n_clusters}\n'
-    for i in range(5):
+    n_clusters_actual = len(np.unique(labels))
+    textstr = f'Total Clusters: {n_clusters_actual}\n'
+    
+    for i in range(min(n_clusters, len(cluster_names))):
         count = np.sum(labels == i)
         if count > 0:
-            textstr += f'{cluster_names[i]}: {count} participants\n'
+            cluster_name = cluster_names[i] if i < len(cluster_names) else f'Cluster {i}'
+            textstr += f'{cluster_name}: {count} participants\n'
     
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
     plt.text(0.02, 0.98, textstr.strip(), transform=plt.gca().transAxes, fontsize=10,
@@ -230,36 +234,43 @@ def save_plot_3_pca_view(X_scaled, labels):
     plt.close()
     logging.info("Saved: 03_pca_view.png")
 
-def save_plot_4_tir_boxplot(labels, healthy_df):
+def save_plot_4_tir_boxplot(labels, healthy_df, n_clusters, true_healthy_cluster_id):
     """Save Plot 4: Time In Range Box Plot"""
     plt.figure(figsize=(12, 8))
     
     # Create DataFrame for plotting
     plot_data = []
-    for i, pid in enumerate(healthy_df['participant_id']):
-        cluster_label = labels[i]
-        cluster_name = 'True Healthy' if cluster_label == 0 else f'Cluster {cluster_label}'
+    for idx in range(len(labels)):
+        cluster_label = labels[idx]
+        if cluster_label == true_healthy_cluster_id:
+            cluster_name = 'CGM-Healthy'
+        else:
+            cluster_name = f'Cluster {cluster_label}'
         plot_data.append({
-            'participant_id': pid,
+            'participant_id': healthy_df.iloc[idx]['participant_id'],
             'cluster': cluster_name,
-            'tir_percent': healthy_df.iloc[i]['tir_percent'],
-            'mean_glucose': healthy_df.iloc[i]['mean_blood_glucose']
+            'tir_percent': healthy_df.iloc[idx]['tir_percent'],
+            'mean_glucose': healthy_df.iloc[idx]['mean_blood_glucose']
         })
     
     plot_df = pd.DataFrame(plot_data)
+
+    cluster_order = (
+        ['CGM-Healthy'] +
+        [f'Cluster {i}' for i in range(n_clusters) if i != true_healthy_cluster_id]
+    )
     
     # Box plot for TIR (Time In Range)
-    sns.boxplot(data=plot_df, x='cluster', y='tir_percent')
+    sns.boxplot(data=plot_df, x='cluster', y='tir_percent', order=cluster_order)
     plt.title('Time In Range by Cluster', fontsize=16, fontweight='bold')
     plt.xlabel('Cluster', fontsize=12)
     plt.ylabel('Time In Range (%)', fontsize=12)
     plt.xticks(rotation=45)
     
-    # Highlight True Healthy label
+    # Highlight CGM-Healthy label
     ax = plt.gca()
-    labels_text = ax.get_xticklabels()
-    for label in labels_text:
-        if 'True Healthy' in label.get_text():
+    for label in ax.get_xticklabels():
+        if label.get_text() == 'CGM-Healthy':
             label.set_color('red')
             label.set_fontweight('bold')
     
@@ -268,66 +279,88 @@ def save_plot_4_tir_boxplot(labels, healthy_df):
     plt.close()
     logging.info("Saved: 04_tir_boxplot.png")
 
-def save_plot_5_feature_radar(X_scaled, labels, healthy_df, cluster_features):
+def save_plot_5_feature_radar(X_scaled, labels, healthy_df, cluster_features, n_clusters, true_healthy_cluster_id):
     """Save Plot 5: Feature Radar Chart"""
     fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
-    
+
+    labels = np.asarray(labels)
+
     # Calculate mean values for each cluster
     cluster_means = {}
-    for cluster_id in range(5):
+    for cluster_id in range(n_clusters):
         mask = labels == cluster_id
         if np.any(mask):
-            cluster_data = healthy_df.iloc[mask][cluster_features]
-            # Normalize to 0-1 scale for radar chart
+            cluster_data = healthy_df.loc[mask, cluster_features]
+
             normalized_means = []
             for feature in cluster_features:
                 values = cluster_data[feature]
                 min_val = healthy_df[feature].min()
                 max_val = healthy_df[feature].max()
-                normalized_mean = (values.mean() - min_val) / (max_val - min_val)
+
+                # Prevent divide-by-zero if a feature is constant
+                denom = (max_val - min_val)
+                normalized_mean = (values.mean() - min_val) / denom if denom != 0 else 0.0
                 normalized_means.append(normalized_mean)
+
             cluster_means[cluster_id] = normalized_means
-    
-    # Plot radar chart for Cluster 0 vs others
+
+    # Angles for radar
     angles = np.linspace(0, 2 * np.pi, len(cluster_features), endpoint=False).tolist()
-    angles += angles[:1]  # Complete the circle
-    
-    # Plot Cluster 0 (True Healthy) prominently
-    if 0 in cluster_means:
-        values_0 = cluster_means[0] + cluster_means[0][:1]
-        ax.plot(angles, values_0, 'r-', linewidth=3, label='True Healthy', alpha=0.8)
-        ax.fill(angles, values_0, 'red', alpha=0.2)
-    
+    angles += angles[:1]  # close the loop
+
+    # Plot True Healthy cluster prominently
+    th_id = true_healthy_cluster_id
+    if th_id in cluster_means:
+        values_th = cluster_means[th_id] + cluster_means[th_id][:1]
+        ax.plot(angles, values_th, 'r-', linewidth=3, label=f'CGM-Healthy (Cluster {th_id})', alpha=0.8)
+        ax.fill(angles, values_th, 'red', alpha=0.2)
+
     # Plot other clusters in gray
-    for cluster_id in [1, 2, 3, 4]:
+    for cluster_id in range(n_clusters):
+        if cluster_id == th_id:
+            continue
         if cluster_id in cluster_means:
             values = cluster_means[cluster_id] + cluster_means[cluster_id][:1]
             ax.plot(angles, values, color='gray', linewidth=1, alpha=0.6)
-    
+
     ax.set_xticks(angles[:-1])
     ax.set_xticklabels([f.replace('_', '\n') for f in cluster_features], fontsize=10)
     ax.set_ylim(0, 1)
-    ax.set_title('Cluster 0 Feature Profile\n(True Healthy)', fontsize=16, fontweight='bold', pad=20)
+    ax.set_title(f'CGM-Healthy Feature Profile\n(Cluster {th_id})', fontsize=16, fontweight='bold', pad=20)
     ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0))
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "05_feature_radar.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 05_feature_radar.png")
 
-def save_plot_6_statistics_table(labels, healthy_df):
+
+def save_plot_6_statistics_table(labels, healthy_df, n_clusters, true_healthy_cluster_id):
     """Save Plot 6: Statistics Table"""
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.axis('off')
     
     # Create statistics table
     stats_data = []
-    for cluster_id in range(5):
+    row_labels = []
+    # Force CGM-Healthy first
+    cluster_order = (
+        [true_healthy_cluster_id] +
+        [i for i in range(n_clusters) if i != true_healthy_cluster_id]
+    )
+
+    for cluster_id in cluster_order:
         mask = labels == cluster_id
         if np.any(mask):
             cluster_data = healthy_df.iloc[mask]
+            cluster_name = (
+                'CGM-Healthy' if cluster_id == true_healthy_cluster_id else f'Cluster {cluster_id}'
+            )
+
+            row_labels.append(cluster_name)
             stats_data.append([
-                f'Cluster {cluster_id}' if cluster_id != 0 else 'CGM-Healthy',
+                cluster_name,
                 len(cluster_data),
                 f'{cluster_data["tir_percent"].mean():.1f}±{cluster_data["tir_percent"].std():.1f}',
                 f'{cluster_data["mean_blood_glucose"].mean():.1f}±{cluster_data["mean_blood_glucose"].std():.1f}',
@@ -338,19 +371,20 @@ def save_plot_6_statistics_table(labels, healthy_df):
     
     # Create table
     table = ax.table(cellText=table_df.values,
-                     colLabels=table_df.columns,
-                     cellLoc='center',
-                     loc='center',
-                     colWidths=[0.2, 0.1, 0.2, 0.2, 0.2])
+                        colLabels=table_df.columns,
+                        cellLoc='center',
+                        loc='center',
+                        colWidths=[0.25, 0.1, 0.2, 0.25, 0.2]
+                )
     
     table.auto_set_font_size(False)
     table.set_fontsize(12)
     table.scale(1, 2.5)
     
-    # Highlight True Healthy row
-    for i in range(len(table_df.columns)):
-        table[(1, i)].set_facecolor('#ffcccc')  # Light red background for True Healthy
-        table[(1, i)].set_text_props(weight='bold')
+    # Highlight CGM-Healthy row (row index 1 = first data row)
+    for col_idx in range(len(table_df.columns)):
+        table[(1, col_idx)].set_facecolor('#ffcccc') # Light red background for True Healthy
+        table[(1, col_idx)].set_text_props(weight='bold')
     
     ax.set_title('Cluster Statistics Summary', fontsize=16, fontweight='bold', pad=20)
     
@@ -359,137 +393,176 @@ def save_plot_6_statistics_table(labels, healthy_df):
     plt.close()
     logging.info("Saved: 06_statistics_table.png")
 
-def save_plot_7_intracluster_compactness(X_scaled, labels):
+def save_plot_7_intracluster_compactness(X_scaled, labels, final_model, n_clusters, true_healthy_cluster_id):
     """Save Plot 7: Intra-cluster Compactness Analysis"""
     plt.figure(figsize=(12, 8))
+
+    # Sanity checks (helpful for catching silent bugs)
+    if not hasattr(final_model, "cluster_centers_"):
+        raise ValueError("final_model must be a fitted clustering model with cluster_centers_.")
+    if final_model.cluster_centers_.shape[0] != n_clusters:
+        raise ValueError("n_clusters does not match number of cluster centers in final_model.")
+    if np.max(labels) >= n_clusters:
+        raise ValueError("labels contain a cluster id >= n_clusters.")
     
-    # Distance from cluster centers
-    kmeans = KMeans(n_clusters=5, random_state=42)
-    kmeans.fit(X_scaled.reshape(X_scaled.shape[0], -1))
+    # Distance from cluster centers (using the final model's centers)    
     
     distances_to_centers = []
-    for i in range(5):
+    for i in range(n_clusters):
         mask = labels == i
         if np.any(mask):
             cluster_points = X_scaled[mask].reshape(np.sum(mask), -1)
-            center = kmeans.cluster_centers_[i]
+            center = final_model.cluster_centers_[i]
             distances = np.linalg.norm(cluster_points - center, axis=1)
             distances_to_centers.extend([(i, d) for d in distances])
     
     distance_df = pd.DataFrame(distances_to_centers, columns=['Cluster', 'Distance'])
     distance_df['Cluster_Name'] = distance_df['Cluster'].apply(
-        lambda x: 'True Healthy' if x == 0 else f'Cluster {x}'
+        lambda x: 'CGM-Healthy' if x == true_healthy_cluster_id else f'Cluster {x}'
     )
     
-    sns.boxplot(data=distance_df, x='Cluster_Name', y='Distance')
+    order = ['CGM-Healthy'] + [f'Cluster {i}' for i in range(n_clusters) if i != true_healthy_cluster_id]
+    sns.boxplot(data=distance_df, x='Cluster_Name', y='Distance', order=order)
     plt.title('Intra-cluster Compactness Analysis', fontsize=16, fontweight='bold')
     plt.xlabel('Cluster', fontsize=12)
     plt.ylabel('Distance to Center', fontsize=12)
     plt.xticks(rotation=45)
     
-    # Highlight True Healthy
+    # Highlight CGM-Healthy tick label
     ax = plt.gca()
-    labels_text = ax.get_xticklabels()
-    for label in labels_text:
-        if 'True Healthy' in label.get_text():
-            label.set_color('red')
-            label.set_fontweight('bold')
+    for tick in ax.get_xticklabels():
+        if tick.get_text() == 'CGM-Healthy':
+            tick.set_color('red')
+            tick.set_fontweight('bold')
     
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "07_intracluster_compactness.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 07_intracluster_compactness.png")
 
-def save_plot_8_tir_distribution(labels, healthy_df):
+
+def save_plot_8_tir_distribution(labels, healthy_df, true_healthy_cluster_id):
     """Save Plot 8: TIR Distribution Comparison"""
     plt.figure(figsize=(12, 8))
     
-    cluster_0_tir = healthy_df.iloc[labels == 0]['tir_percent']
-    other_tir = healthy_df.iloc[labels != 0]['tir_percent']
+    labels = np.asarray(labels)
+    true_tir = healthy_df.loc[labels == true_healthy_cluster_id, 'tir_percent'].dropna()
+    other_tir = healthy_df.loc[labels != true_healthy_cluster_id, 'tir_percent'].dropna()
     
     plt.hist(other_tir, alpha=0.6, bins=20, label='Other Clusters', color='gray', density=True)
-    plt.hist(cluster_0_tir, alpha=0.8, bins=15, label='True Healthy', color='red', density=True)
+    plt.hist(true_tir, alpha=0.8, bins=15, label='CGM-Healthy', color='red', density=True)
+
     plt.title('Time In Range Distribution Comparison', fontsize=16, fontweight='bold')
     plt.xlabel('Time In Range (%)', fontsize=12)
     plt.ylabel('Density', fontsize=12)
-    plt.legend(fontsize=12)
-    plt.axvline(cluster_0_tir.mean(), color='red', linestyle='--', linewidth=2, 
-                label=f'True Healthy Mean: {cluster_0_tir.mean():.1f}%')
-    plt.axvline(other_tir.mean(), color='gray', linestyle='--', linewidth=2,
-                label=f'Others Mean: {other_tir.mean():.1f}%')
-    plt.legend(fontsize=12)
+
+    if len(true_tir) > 0:
+        plt.axvline(true_tir.mean(), color='red', linestyle='--', linewidth=2,
+                    label=f'CGM-Healthy Mean: {true_tir.mean():.1f}%')
+    if len(other_tir) > 0:
+        plt.axvline(other_tir.mean(), color='gray', linestyle='--', linewidth=2,
+                    label=f'Others Mean: {other_tir.mean():.1f}%')
+    
     plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=12)
     
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "08_tir_distribution.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 08_tir_distribution.png")
 
-def save_plot_9_silhouette_analysis(X_scaled, labels):
+def save_plot_9_silhouette_analysis(X_scaled, labels, n_clusters, true_healthy_cluster_id):
     """Save Plot 9: Silhouette Analysis"""
     plt.figure(figsize=(12, 8))
-    
-    # Calculate silhouette scores
-    silhouette_scores = silhouette_samples(X_scaled.reshape(X_scaled.shape[0], -1), labels)
-    overall_silhouette_score = silhouette_score(X_scaled.reshape(X_scaled.shape[0], -1), labels)
-    
-    # Print overall silhouette score
+
+    labels = np.asarray(labels)
+
+    # X_scaled is already 2D from StandardScaler
+    silhouette_vals = silhouette_samples(X_scaled, labels)
+    overall_score = silhouette_score(X_scaled, labels)
+
     print("\n" + "="*70)
-    print(f"\nSILHOUETTE ANALYSIS:")
-    print(f"   Overall Silhouette Score: {overall_silhouette_score:.3f}")
-    print(f"   Interpretation: {'Excellent' if overall_silhouette_score > 0.7 else 'Good' if overall_silhouette_score > 0.5 else 'Fair' if overall_silhouette_score > 0.25 else 'Poor'}")
-    
-    # Calculate and print per-cluster silhouette scores
-    print(f"\n   Per-Cluster Silhouette Scores:")
-    for i in range(5):
+    print("SILHOUETTE ANALYSIS:")
+    print(f"   Overall Silhouette Score: {overall_score:.3f}")
+    print(f"   Interpretation: {'Excellent' if overall_score > 0.7 else 'Good' if overall_score > 0.5 else 'Fair' if overall_score > 0.25 else 'Poor'}")
+
+    print("\n   Per-Cluster Silhouette Scores:")
+    for i in range(n_clusters):
         if np.any(labels == i):
-            cluster_silhouette = silhouette_scores[labels == i].mean()
-            cluster_name = 'CGM-Healthy' if i == 0 else f'Cluster {i}'
-            print(f"   {cluster_name:12}: {cluster_silhouette:.3f}")    
-    
+            s_i = silhouette_vals[labels == i].mean()
+            cluster_name = 'CGM-Healthy' if i == true_healthy_cluster_id else f'Cluster {i}'
+            print(f"   {cluster_name:12}: {s_i:.3f}")
+
     y_lower = 10
-    for i in range(5):
-        cluster_silhouette_scores = silhouette_scores[labels == i]
-        cluster_silhouette_scores.sort()
-        
-        size_cluster_i = cluster_silhouette_scores.shape[0]
-        y_upper = y_lower + size_cluster_i
-        
-        color = 'red' if i == 0 else plt.cm.nipy_spectral(float(i) / 5)
-        plt.fill_betweenx(np.arange(y_lower, y_upper),
-                         0, cluster_silhouette_scores,
-                         facecolor=color, edgecolor=color, alpha=0.7)
-        
-        label = 'True Healthy' if i == 0 else f'Cluster {i}'
-        plt.text(-0.05, y_lower + 0.5 * size_cluster_i, label, fontsize=12, fontweight='bold' if i == 0 else 'normal')
+    for i in range(n_clusters):
+        s_cluster = silhouette_vals[labels == i]
+        s_cluster.sort()
+
+        size_i = s_cluster.shape[0]
+        y_upper = y_lower + size_i
+
+        is_true = (i == true_healthy_cluster_id)
+        color = 'red' if is_true else plt.cm.nipy_spectral(float(i) / max(n_clusters, 1))
+
+        plt.fill_betweenx(
+            np.arange(y_lower, y_upper),
+            0, s_cluster,
+            facecolor=color, edgecolor=color, alpha=0.7
+        )
+
+        label = 'CGM-Healthy' if is_true else f'Cluster {i}'
+        plt.text(-0.05, y_lower + 0.5 * size_i, label,
+                    fontsize=12, fontweight='bold' if is_true else 'normal')
+
         y_lower = y_upper + 10
-    
+
     plt.title('Silhouette Analysis by Cluster', fontsize=16, fontweight='bold')
     plt.xlabel('Silhouette Score', fontsize=12)
     plt.ylabel('Cluster', fontsize=12)
     plt.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "09_silhouette_analysis.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 09_silhouette_analysis.png")
 
-def save_plot_10_clinical_metrics(labels, healthy_df):
+
+def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
     """Save Plot 10: Enhanced Clinical Metrics Comparison"""
+    labels = np.asarray(labels)
+
+    # Masks
+    th_mask = labels == true_healthy_cluster_id
+    other_mask = labels != true_healthy_cluster_id
+
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    
+    width = 0.35
+
+    # Helper to compute safe mean
+    def safe_mean(col, mask):
+        if col not in healthy_df.columns:
+            return np.nan
+        return healthy_df.loc[mask, col].dropna().mean()
+
+    # Helper for text offset that won't become NaN
+    def safe_offset(values_a, values_b):
+        vals = [v for v in (list(values_a) + list(values_b)) if np.isfinite(v)]
+        if not vals:
+            return 0.0
+        return max(vals) * 0.01
+
+    # ---------------------------------------------------
     # Subplot 1: Core Clinical Metrics (TIR, TAR, TBR)
     ax1 = axes[0, 0]
     core_metrics = ['tir_percent', 'tar_percent', 'tbr_percent']
-    cluster_0_means = [healthy_df.iloc[labels == 0][metric].mean() for metric in core_metrics]
-    other_means = [healthy_df.iloc[labels != 0][metric].mean() for metric in core_metrics]
-    
+
+    th_means = [safe_mean(m, th_mask) for m in core_metrics]
+    other_means = [safe_mean(m, other_mask) for m in core_metrics]
+
     x = np.arange(len(core_metrics))
-    width = 0.35
-    
-    bars1 = ax1.bar(x - width/2, cluster_0_means, width, label='CGM-Healthy', color='red', alpha=0.8)
-    bars2 = ax1.bar(x + width/2, other_means, width, label='Other Clusters', color='gray', alpha=0.6)
-    
+    ax1.bar(x - width/2, th_means, width, label='CGM-Healthy', color='red', alpha=0.8)
+    ax1.bar(x + width/2, other_means, width, label='Other Clusters', color='gray', alpha=0.6)
+
     ax1.set_title('Core Clinical Metrics (Time-based)', fontsize=14, fontweight='bold')
     ax1.set_xlabel('Metrics', fontsize=12)
     ax1.set_ylabel('Percentage (%)', fontsize=12)
@@ -497,26 +570,29 @@ def save_plot_10_clinical_metrics(labels, healthy_df):
     ax1.set_xticklabels(['Time In Range\n(70-140)', 'Time Above Range\n(>140)', 'Time Below Range\n(<70)'])
     ax1.legend(fontsize=10)
     ax1.grid(True, alpha=0.3, axis='y')
-    
-    # Add value labels on bars
-    for i, (v1, v2) in enumerate(zip(cluster_0_means, other_means)):
-        ax1.text(i - width/2, v1 + max(cluster_0_means + other_means) * 0.01, f'{v1:.1f}%', 
-                ha='center', va='bottom', fontweight='bold', fontsize=10)
-        ax1.text(i + width/2, v2 + max(cluster_0_means + other_means) * 0.01, f'{v2:.1f}%', 
-                ha='center', va='bottom', fontsize=10)
-    
+
+    off = safe_offset(th_means, other_means)
+    for i, (v1, v2) in enumerate(zip(th_means, other_means)):
+        if np.isfinite(v1):
+            ax1.text(i - width/2, v1 + off, f'{v1:.1f}%', ha='center', va='bottom',
+                        fontweight='bold', fontsize=10)
+        if np.isfinite(v2):
+            ax1.text(i + width/2, v2 + off, f'{v2:.1f}%', ha='center', va='bottom',
+                        fontsize=10)
+
+    # ---------------------------------------------------
     # Subplot 2: Glucose Statistics
     ax2 = axes[0, 1]
     glucose_metrics = ['mean_blood_glucose', 'std_dev', 'cv_percent']
     glucose_labels = ['Mean Glucose\n(mg/dL)', 'Std Deviation\n(mg/dL)', 'CV\n(%)']
-    
-    cluster_0_glucose = [healthy_df.iloc[labels == 0][metric].mean() for metric in glucose_metrics]
-    other_glucose = [healthy_df.iloc[labels != 0][metric].mean() for metric in glucose_metrics]
-    
+
+    th_glucose = [safe_mean(m, th_mask) for m in glucose_metrics]
+    other_glucose = [safe_mean(m, other_mask) for m in glucose_metrics]
+
     x2 = np.arange(len(glucose_metrics))
-    bars3 = ax2.bar(x2 - width/2, cluster_0_glucose, width, label='CGM-Healthy', color='red', alpha=0.8)
-    bars4 = ax2.bar(x2 + width/2, other_glucose, width, label='Other Clusters', color='gray', alpha=0.6)
-    
+    ax2.bar(x2 - width/2, th_glucose, width, label='CGM-Healthy', color='red', alpha=0.8)
+    ax2.bar(x2 + width/2, other_glucose, width, label='Other Clusters', color='gray', alpha=0.6)
+
     ax2.set_title('Glucose Statistics', fontsize=14, fontweight='bold')
     ax2.set_xlabel('Metrics', fontsize=12)
     ax2.set_ylabel('Values', fontsize=12)
@@ -524,31 +600,33 @@ def save_plot_10_clinical_metrics(labels, healthy_df):
     ax2.set_xticklabels(glucose_labels)
     ax2.legend(fontsize=10)
     ax2.grid(True, alpha=0.3, axis='y')
-    
-    # Add value labels
-    for i, (v1, v2) in enumerate(zip(cluster_0_glucose, other_glucose)):
-        ax2.text(i - width/2, v1 + max(cluster_0_glucose + other_glucose) * 0.01, f'{v1:.1f}', 
-                ha='center', va='bottom', fontweight='bold', fontsize=10)
-        ax2.text(i + width/2, v2 + max(cluster_0_glucose + other_glucose) * 0.01, f'{v2:.1f}', 
-                ha='center', va='bottom', fontsize=10)
-    
+
+    off2 = safe_offset(th_glucose, other_glucose)
+    for i, (v1, v2) in enumerate(zip(th_glucose, other_glucose)):
+        if np.isfinite(v1):
+            ax2.text(i - width/2, v1 + off2, f'{v1:.1f}', ha='center', va='bottom',
+                        fontweight='bold', fontsize=10)
+        if np.isfinite(v2):
+            ax2.text(i + width/2, v2 + off2, f'{v2:.1f}', ha='center', va='bottom',
+                        fontsize=10)
+
+    # ---------------------------------------------------
     # Subplot 3: Advanced Glycemic Metrics
     ax3 = axes[1, 0]
     advanced_metrics = ['mage', 'j_index', 'lability_index']
     advanced_labels = ['MAGE\n(mg/dL)', 'J-Index', 'Lability Index']
-    
-    # Check which advanced metrics are available
+
     available_advanced = [m for m in advanced_metrics if m in healthy_df.columns]
     available_labels = [advanced_labels[i] for i, m in enumerate(advanced_metrics) if m in available_advanced]
-    
+
     if available_advanced:
-        cluster_0_advanced = [healthy_df.iloc[labels == 0][metric].mean() for metric in available_advanced]
-        other_advanced = [healthy_df.iloc[labels != 0][metric].mean() for metric in available_advanced]
-        
+        th_adv = [safe_mean(m, th_mask) for m in available_advanced]
+        other_adv = [safe_mean(m, other_mask) for m in available_advanced]
+
         x3 = np.arange(len(available_advanced))
-        bars5 = ax3.bar(x3 - width/2, cluster_0_advanced, width, label='CGM-Healthy', color='red', alpha=0.8)
-        bars6 = ax3.bar(x3 + width/2, other_advanced, width, label='Other Clusters', color='gray', alpha=0.6)
-        
+        ax3.bar(x3 - width/2, th_adv, width, label='CGM-Healthy', color='red', alpha=0.8)
+        ax3.bar(x3 + width/2, other_adv, width, label='Other Clusters', color='gray', alpha=0.6)
+
         ax3.set_title('Advanced Glycemic Variability', fontsize=14, fontweight='bold')
         ax3.set_xlabel('Metrics', fontsize=12)
         ax3.set_ylabel('Values', fontsize=12)
@@ -556,150 +634,148 @@ def save_plot_10_clinical_metrics(labels, healthy_df):
         ax3.set_xticklabels(available_labels)
         ax3.legend(fontsize=10)
         ax3.grid(True, alpha=0.3, axis='y')
-        
-        # Add value labels
-        for i, (v1, v2) in enumerate(zip(cluster_0_advanced, other_advanced)):
-            ax3.text(i - width/2, v1 + max(cluster_0_advanced + other_advanced) * 0.01, f'{v1:.2f}', 
-                    ha='center', va='bottom', fontweight='bold', fontsize=10)
-            ax3.text(i + width/2, v2 + max(cluster_0_advanced + other_advanced) * 0.01, f'{v2:.2f}', 
-                    ha='center', va='bottom', fontsize=10)
+
+        off3 = safe_offset(th_adv, other_adv)
+        for i, (v1, v2) in enumerate(zip(th_adv, other_adv)):
+            if np.isfinite(v1):
+                ax3.text(i - width/2, v1 + off3, f'{v1:.2f}', ha='center', va='bottom',
+                            fontweight='bold', fontsize=10)
+            if np.isfinite(v2):
+                ax3.text(i + width/2, v2 + off3, f'{v2:.2f}', ha='center', va='bottom',
+                            fontsize=10)
     else:
-        ax3.text(0.5, 0.5, 'Advanced metrics\nnot available', 
-                ha='center', va='center', transform=ax3.transAxes, fontsize=12)
+        ax3.text(0.5, 0.5, 'Advanced metrics\nnot available',
+                    ha='center', va='center', transform=ax3.transAxes, fontsize=12)
         ax3.set_title('Advanced Glycemic Variability', fontsize=14, fontweight='bold')
-    
+
+    # ---------------------------------------------------
     # Subplot 4: CONGA Metrics (if available)
     ax4 = axes[1, 1]
     conga_metrics = ['conga_1h', 'conga_2h']
     available_conga = [m for m in conga_metrics if m in healthy_df.columns]
-    
+
     if available_conga:
         conga_labels = [m.replace('_', ' ').upper() for m in available_conga]
-        cluster_0_conga = [healthy_df.iloc[labels == 0][metric].mean() for metric in available_conga]
-        other_conga = [healthy_df.iloc[labels != 0][metric].mean() for metric in available_conga]
-        
+        th_conga = [safe_mean(m, th_mask) for m in available_conga]
+        other_conga = [safe_mean(m, other_mask) for m in available_conga]
+
         x4 = np.arange(len(available_conga))
-        bars7 = ax4.bar(x4 - width/2, cluster_0_conga, width, label='CGM-Healthy', color='red', alpha=0.8)
-        bars8 = ax4.bar(x4 + width/2, other_conga, width, label='Other Clusters', color='gray', alpha=0.6)
-        
-        ax4.set_title('CONGA Metrics\n(Continuous Overlapping Net Glycemic Action)', fontsize=14, fontweight='bold')
+        ax4.bar(x4 - width/2, th_conga, width, label='CGM-Healthy', color='red', alpha=0.8)
+        ax4.bar(x4 + width/2, other_conga, width, label='Other Clusters', color='gray', alpha=0.6)
+
+        ax4.set_title('CONGA Metrics\n(Continuous Overlapping Net Glycemic Action)',
+                        fontsize=14, fontweight='bold')
         ax4.set_xlabel('Metrics', fontsize=12)
         ax4.set_ylabel('Values (mg/dL)', fontsize=12)
         ax4.set_xticks(x4)
         ax4.set_xticklabels(conga_labels)
         ax4.legend(fontsize=10)
         ax4.grid(True, alpha=0.3, axis='y')
-        
-        # Add value labels
-        for i, (v1, v2) in enumerate(zip(cluster_0_conga, other_conga)):
-            ax4.text(i - width/2, v1 + max(cluster_0_conga + other_conga) * 0.01, f'{v1:.1f}', 
-                    ha='center', va='bottom', fontweight='bold', fontsize=10)
-            ax4.text(i + width/2, v2 + max(cluster_0_conga + other_conga) * 0.01, f'{v2:.1f}', 
-                    ha='center', va='bottom', fontsize=10)
+
+        off4 = safe_offset(th_conga, other_conga)
+        for i, (v1, v2) in enumerate(zip(th_conga, other_conga)):
+            if np.isfinite(v1):
+                ax4.text(i - width/2, v1 + off4, f'{v1:.1f}', ha='center', va='bottom',
+                            fontweight='bold', fontsize=10)
+            if np.isfinite(v2):
+                ax4.text(i + width/2, v2 + off4, f'{v2:.1f}', ha='center', va='bottom',
+                            fontsize=10)
     else:
-        # Create a summary statistics table instead
+        # Same fallback table logic you had, but keep it consistent with masks
         ax4.axis('off')
-        
-        # Create summary data
+
         summary_data = []
-        cluster_0_data = healthy_df.iloc[labels == 0]
-        other_data = healthy_df.iloc[labels != 0]
-        
         summary_metrics = ['tir_percent', 'mean_blood_glucose', 'cv_percent', 'mage']
         available_summary = [m for m in summary_metrics if m in healthy_df.columns]
-        
+
         for metric in available_summary:
             metric_name = metric.replace('_percent', ' (%)').replace('_', ' ').title()
-            cgm_healthy_val = cluster_0_data[metric].mean()
-            others_val = other_data[metric].mean()
-            difference = cgm_healthy_val - others_val
-            
-            summary_data.append([
-                metric_name,
-                f'{cgm_healthy_val:.1f}',
-                f'{others_val:.1f}',
-                f'{difference:+.1f}'
-            ])
-        
+            th_val = safe_mean(metric, th_mask)
+            oth_val = safe_mean(metric, other_mask)
+            diff = th_val - oth_val if np.isfinite(th_val) and np.isfinite(oth_val) else np.nan
+
+            summary_data.append([metric_name,
+                                f'{th_val:.1f}' if np.isfinite(th_val) else 'NA',
+                                f'{oth_val:.1f}' if np.isfinite(oth_val) else 'NA',
+                                f'{diff:+.1f}' if np.isfinite(diff) else 'NA'])
+
         if summary_data:
-            table_df = pd.DataFrame(summary_data, 
-                                  columns=['Metric', 'CGM-Healthy', 'Others', 'Difference'])
-            
-            # Create table
+            table_df = pd.DataFrame(summary_data, columns=['Metric', 'CGM-Healthy', 'Others', 'Difference'])
             table = ax4.table(cellText=table_df.values,
-                             colLabels=table_df.columns,
-                             cellLoc='center',
-                             loc='center',
-                             colWidths=[0.3, 0.2, 0.2, 0.2])
-            
+                            colLabels=table_df.columns,
+                            cellLoc='center',
+                            loc='center',
+                            colWidths=[0.3, 0.2, 0.2, 0.2])
+
             table.auto_set_font_size(False)
             table.set_fontsize(10)
             table.scale(1, 2)
-            
-            # Style the table
+
             for i in range(len(table_df.columns)):
                 table[(0, i)].set_facecolor('#4CAF50')
                 table[(0, i)].set_text_props(weight='bold', color='white')
-            
-            # Highlight differences
+
             for i in range(1, len(table_df) + 1):
                 table[(i, 0)].set_facecolor('#f8f8f8')
-                table[(i, 1)].set_facecolor('#ffcccc')  # CGM-Healthy column
+                table[(i, 1)].set_facecolor('#ffcccc')
                 table[(i, 1)].set_text_props(weight='bold')
-            
+
             ax4.set_title('Clinical Metrics Summary', fontsize=14, fontweight='bold', pad=20)
-    
-    # Add overall figure title
-    fig.suptitle('Comprehensive Clinical Metrics Comparison\nCGM-Healthy vs Other Clusters', 
-                fontsize=16, fontweight='bold', y=0.95)
-    
+
+    # ---------------------------------------------------
+    fig.suptitle('Comprehensive Clinical Metrics Comparison\nCGM-Healthy vs Other Clusters',
+                    fontsize=16, fontweight='bold', y=0.95)
+
     plt.tight_layout()
-    plt.subplots_adjust(top=0.88)  # Make room for suptitle
+    plt.subplots_adjust(top=0.88)
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "10_clinical_metrics.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 10_clinical_metrics.png")
 
-def save_plot_11_elbow_curve(X_scaled):
+
+def save_plot_11_elbow_curve(X_scaled, chosen_k=None):
     """Save Plot 11: Elbow Curve for Optimal Clusters"""
     plt.figure(figsize=(10, 8))
-    
+
     inertia = []
-    for i in range(1, 11):
-        model = TimeSeriesKMeans(n_clusters=i, metric="euclidean", random_state=42)
+    for k in range(1, 11):
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)
         model.fit(X_scaled)
         inertia.append(model.inertia_)
-    
-    plt.plot(range(1, 11), inertia, marker='o', linewidth=2, markersize=8)
+
+    ks = list(range(1, 11))
+    plt.plot(ks, inertia, marker='o', linewidth=2, markersize=8)
     plt.title("Elbow Method for Optimal Number of Clusters", fontsize=16, fontweight='bold')
     plt.xlabel("Number of Clusters", fontsize=12)
     plt.ylabel("Inertia", fontsize=12)
     plt.grid(True, alpha=0.3)
-    
-    # Highlight the chosen number of clusters
-    plt.axvline(x=5, color='red', linestyle='--', linewidth=2, label='Chosen: 5 clusters')
-    plt.legend(fontsize=12)
-    
+
+    if chosen_k is not None:
+        plt.axvline(x=chosen_k, color='red', linestyle='--', linewidth=2, label=f'Chosen: {chosen_k} clusters')
+        plt.legend(fontsize=12)
+
     plt.tight_layout()
     plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "11_elbow_curve.png"), dpi=300, bbox_inches='tight')
     plt.close()
     logging.info("Saved: 11_elbow_curve.png")
 
-def create_all_visualizations(X_scaled, labels, healthy_df, cluster_features):
+
+def create_all_visualizations(X_scaled, labels, healthy_df, cluster_features, n_clusters, final_model, true_healthy_cluster_id):
     """Create and save all individual visualizations"""
     logging.info("Creating and saving all visualization plots...")
     
     # Save all individual plots
-    save_plot_1_cluster_highlight(X_scaled, labels, healthy_df)
+    save_plot_1_cluster_highlight(X_scaled, labels, n_clusters, true_healthy_cluster_id)
     save_plot_2_traditional_clusters(X_scaled, labels)
-    save_plot_3_pca_view(X_scaled, labels)
-    save_plot_4_tir_boxplot(labels, healthy_df)
-    save_plot_5_feature_radar(X_scaled, labels, healthy_df, cluster_features)
-    save_plot_6_statistics_table(labels, healthy_df)
-    save_plot_7_intracluster_compactness(X_scaled, labels)
-    save_plot_8_tir_distribution(labels, healthy_df)
-    save_plot_9_silhouette_analysis(X_scaled, labels)
-    save_plot_10_clinical_metrics(labels, healthy_df)
-    save_plot_11_elbow_curve(X_scaled)
+    save_plot_3_pca_view(X_scaled, labels, n_clusters, true_healthy_cluster_id)
+    save_plot_4_tir_boxplot(labels, healthy_df, n_clusters, true_healthy_cluster_id)
+    save_plot_5_feature_radar(X_scaled, labels, healthy_df, cluster_features, n_clusters, true_healthy_cluster_id)
+    save_plot_6_statistics_table(labels, healthy_df, n_clusters, true_healthy_cluster_id)
+    save_plot_7_intracluster_compactness(X_scaled, labels, final_model, n_clusters, true_healthy_cluster_id)
+    save_plot_8_tir_distribution(labels, healthy_df, true_healthy_cluster_id)
+    save_plot_9_silhouette_analysis(X_scaled, labels, n_clusters, true_healthy_cluster_id)
+    save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id)
+    save_plot_11_elbow_curve(X_scaled, chosen_k=n_clusters)
     
     logging.info(f"All plots saved successfully to: {PLOTS_OUTPUT_DIR}")
 
@@ -735,7 +811,8 @@ def compute_participant_metrics():
             if record_count < 2138:
                 continue
 
-            data = df[df['participant_id'] == pid].head(2138)
+            # Sort the values by timestamp and take the first 2138 records for each participant id's
+            data = df[df['participant_id'] == pid].sort_values('timestamp').head(2138)
             glucose = data['blood_glucose_value'].values
             if len(glucose) == 0:
                 continue
@@ -768,32 +845,33 @@ def compute_participant_metrics():
     logging.info(f"Saved summarized metrics to {SUMMARY_PATH}")
     return metrics_df
 
-def print_cluster_summary(labels, healthy_df):
+def print_cluster_summary(labels, healthy_df, true_healthy_cluster_id):
     """Print detailed summary of clustering results"""
     print("\n" + "="*70)
     print("CLUSTERING ANALYSIS SUMMARY")
     print("="*70)
     
     total_participants = len(labels)
-    cluster_0_count = np.sum(labels == 0)
+    true_healthy_count = np.sum(labels == true_healthy_cluster_id)
     
     print(f"\nOVERALL STATISTICS:")
     print(f"   Total Healthy Participants: {total_participants}")
-    print(f"   True Healthy (Cluster 0): {cluster_0_count}")
-    print(f"   Percentage True Healthy: {(cluster_0_count/total_participants)*100:.1f}%")
+    print(f"   True Healthy (Cluster {true_healthy_cluster_id}): {true_healthy_count}")
+    print(f"   Percentage True Healthy: {(true_healthy_count/total_participants)*100:.1f}%")
     
     print(f"\nCLINICAL SIGNIFICANCE:")
-    cluster_0_data = healthy_df.iloc[labels == 0]
-    other_data = healthy_df.iloc[labels != 0]
+    labels = np.asarray(labels)
+    true_healthy_data = healthy_df.loc[labels == true_healthy_cluster_id]
+    other_data = healthy_df.loc[labels != true_healthy_cluster_id]
     
-    print(f"   True Healthy TIR: {cluster_0_data['tir_percent'].mean():.1f}% ± {cluster_0_data['tir_percent'].std():.1f}%")
+    print(f"   True Healthy TIR: {true_healthy_data['tir_percent'].mean():.1f}% ± {true_healthy_data['tir_percent'].std():.1f}%")
     print(f"   Other Groups TIR: {other_data['tir_percent'].mean():.1f}% ± {other_data['tir_percent'].std():.1f}%")
-    print(f"   Difference: {cluster_0_data['tir_percent'].mean() - other_data['tir_percent'].mean():.1f}% higher")
+    print(f"   Difference: {true_healthy_data['tir_percent'].mean() - other_data['tir_percent'].mean():.1f}% higher")
     
     print(f"\nGLUCOSE METRICS:")
-    print(f"   True Healthy Mean Glucose: {cluster_0_data['mean_blood_glucose'].mean():.1f} mg/dL")
-    print(f"   True Healthy CV: {cluster_0_data['cv_percent'].mean():.1f}%")
-    print(f"   True Healthy MAGE: {cluster_0_data['mage'].mean():.1f}")
+    print(f"   True Healthy Mean Glucose: {true_healthy_data['mean_blood_glucose'].mean():.1f} mg/dL")
+    print(f"   True Healthy CV: {true_healthy_data['cv_percent'].mean():.1f}%")
+    print(f"   True Healthy MAGE: {true_healthy_data['mage'].mean():.1f}")
     
     print(f"\nPLOTS SAVED:")
     print(f"   All visualization plots saved to: {PLOTS_OUTPUT_DIR}")
@@ -812,98 +890,357 @@ def print_cluster_summary(labels, healthy_df):
     
     print("\n" + "="*70)
 
+
 def cluster_healthy_participants_enhanced(metrics_df):
-    """Enhanced clustering function with comprehensive visualization saving"""
-    logging.info("Clustering healthy participants with enhanced visualization.")
+    """
+    Enhanced clustering with SYSTEMATIC K selection.
+    
+    Improvements:
+    1. Tests K from 2 to 10
+    2. Computes multiple validation metrics
+    3. Programmatically identifies best cluster
+    4. Uses standard KMeans (appropriate for summary stats)
+    """
+    logging.info("Clustering healthy participants with systematic K selection.")
 
     # Filter only healthy participants
-    healthy_df = metrics_df[metrics_df['study_group'] == 'healthy']
+    healthy_df = metrics_df.loc[metrics_df['study_group'] == 'healthy'].copy().reset_index(drop=True)
     if healthy_df.empty:
         raise ValueError("No healthy participants found.")
 
     # Selected features for clustering
-    cluster_features = ['mean_blood_glucose', 'std_dev', 'cv_percent', 'tir_percent', 'tbr_percent',
-                        'mage', 'lability_index', 'conga_2h']
+    cluster_features = [
+        'mean_blood_glucose', 'std_dev', 'cv_percent', 
+        'tir_percent', 'tbr_percent', 'mage', 
+        'lability_index', 'conga_2h'
+    ]
 
-    # Data preparation for clustering
+    # Data preparation
     X = healthy_df[cluster_features].values
-    scaler = TimeSeriesScalerMeanVariance()
+    
+    # Use StandardScaler (more common for summary statistics)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
+    
+    # ========================================
+    # STEP 1: SYSTEMATIC K SELECTION
+    # ========================================
+    print("\n" + "="*70)
+    print("STEP 1: EVALUATING OPTIMAL NUMBER OF CLUSTERS")
+    print("="*70)
+    
+    from sklearn.metrics import silhouette_score, davies_bouldin_score, calinski_harabasz_score
+    from sklearn.cluster import KMeans
+    
+    k_range = range(2, 11)
+    metrics_results = []
+    
+    for k in k_range:
+        # Fit KMeans
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(X_scaled)
+        
+        # Compute validation metrics
+        inertia = kmeans.inertia_
+        silhouette = silhouette_score(X_scaled, labels)
+        db_index = davies_bouldin_score(X_scaled, labels)
+        ch_score = calinski_harabasz_score(X_scaled, labels)
+        
+        metrics_results.append({
+            'K': k,
+            'Inertia': inertia,
+            'Silhouette': silhouette,
+            'Davies_Bouldin': db_index,
+            'Calinski_Harabasz': ch_score
+        })
+        
+        print(f"K={k:2d} | Silhouette: {silhouette:.3f} | DB Index: {db_index:.3f} | CH Score: {ch_score:.1f}")
+    
+    # Convert to DataFrame for analysis
+    metrics_df_k = pd.DataFrame(metrics_results)
+    
+    # ========================================
+    # STEP 2: CHOOSE K BASED ON METRICS
+    # ========================================
+    print("\n" + "="*70)
+    print("STEP 2: K SELECTION DECISION")
+    print("="*70)
+    
+    # Find K with best silhouette score
+    best_k_silhouette = metrics_df_k.loc[metrics_df_k['Silhouette'].idxmax(), 'K']
+    
+    # Find K with best DB index (lower is better)
+    best_k_db = metrics_df_k.loc[metrics_df_k['Davies_Bouldin'].idxmin(), 'K']
+    
+    # Elbow method (look for "elbow" in inertia curve)
+    # For programmatic elbow detection, you can use:
+    try:
+        from kneed import KneeLocator
+        KNEED_AVAILABLE = True
+    except ImportError:
+        KNEED_AVAILABLE = False
+        logging.warning("kneed library not available. Using fallback for elbow detection.")
 
-    n_clusters = 5
-    model = TimeSeriesKMeans(n_clusters=n_clusters, metric="euclidean", verbose=True, random_state=42)
-    labels = model.fit_predict(X_scaled)
+    kl = KneeLocator(
+        metrics_df_k['K'], 
+        metrics_df_k['Inertia'], 
+        curve='convex', 
+        direction='decreasing'
+    )
+    elbow_k = kl.elbow if kl.elbow else 5  # fallback to 5
+    
+    print(f"Best K by Silhouette Score: {best_k_silhouette}")
+    print(f"Best K by Davies-Bouldin Index: {best_k_db}")
+    print(f"Best K by Elbow Method: {elbow_k}")
+    
+    # Decision logic
+    print("\nDECISION RATIONALE:")
+    print(f"- Elbow method suggests K={elbow_k}")
+    print(f"- Silhouette analysis suggests K={best_k_silhouette}")
+    
+    # Use elbow_k if available, else use silhouette
+    n_clusters = elbow_k
+    print(f"\n✓ CHOSEN: K={n_clusters} (based on elbow method + clinical validity)")
+    
+    # ========================================
+    # STEP 3: FINAL CLUSTERING WITH CHOSEN K
+    # ========================================
+    print("\n" + "="*70)
+    print(f"STEP 3: FINAL CLUSTERING WITH K={n_clusters}")
+    print("="*70)
+    
+    final_model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    labels = final_model.fit_predict(X_scaled)
+    
+    # ========================================
+    # STEP 4: IDENTIFY "TRUE HEALTHY" CLUSTER
+    # ========================================
+    print("\n" + "="*70)
+    print("STEP 4: IDENTIFYING TRUE HEALTHY CLUSTER")
+    print("="*70)
+    
+    # Compute metrics for each cluster
+    cluster_profiles = []
+    for i in range(n_clusters):
+        cluster_mask = labels == i
+        cluster_data = healthy_df[cluster_mask]
+        
+        profile = {
+            'Cluster': i,
+            'N': cluster_mask.sum(),
+            'Mean_TIR': cluster_data['tir_percent'].mean(),
+            'Mean_CV': cluster_data['cv_percent'].mean(),
+            'Mean_Glucose': cluster_data['mean_blood_glucose'].mean(),
+            'Mean_MAGE': cluster_data['mage'].mean()
+        }
+        cluster_profiles.append(profile)
+        
+        print(f"\nCluster {i} (n={profile['N']}):")
+        print(f"  TIR:          {profile['Mean_TIR']:.1f}%")
+        print(f"  CV:           {profile['Mean_CV']:.1f}%")
+        print(f"  Mean Glucose: {profile['Mean_Glucose']:.1f} mg/dL")
+        print(f"  MAGE:         {profile['Mean_MAGE']:.1f}")
+    
+    # Find cluster that meets clinical criteria for "true healthy"
+    # Criteria: TIR > 90%, CV < 20%, Mean glucose 70-120
+    true_healthy_cluster_id = None
+    qualifying_clusters = []
+    for profile in cluster_profiles:
+        if (profile['Mean_TIR'] > 90 and 
+            profile['Mean_CV'] < 20 and 
+            70 <= profile['Mean_Glucose'] <= 120):
+            qualifying_clusters.append(profile)
 
-    # Create and save all visualizations
-    create_all_visualizations(X_scaled, labels, healthy_df, cluster_features)
-
-    # Print detailed summary
-    print_cluster_summary(labels, healthy_df)
-
-    # Identify true healthy cluster
-    cluster_id = 0
+    if qualifying_clusters:
+        # Pick the one with highest TIR
+        best_cluster = max(qualifying_clusters, key=lambda x: x['Mean_TIR'])
+        true_healthy_cluster_id = best_cluster['Cluster']
+        if len(qualifying_clusters) > 1:
+            print(f"   ({len(qualifying_clusters)} clusters qualified; chose highest TIR)")
+    
+    if true_healthy_cluster_id is None:
+        # Fallback: choose cluster with highest TIR
+        cluster_profiles_df = pd.DataFrame(cluster_profiles)
+        true_healthy_cluster_id = cluster_profiles_df.loc[
+            cluster_profiles_df['Mean_TIR'].idxmax(), 'Cluster'
+        ]
+        print(f"\n⚠ FALLBACK: No cluster meets strict criteria. Using highest TIR cluster: {true_healthy_cluster_id}")
+    
+    # ========================================
+    # STEP 5: UPDATE LABELS
+    # ========================================
     all_healthy_participants = healthy_df['participant_id'].values
-    cluster_labels = {int(all_healthy_participants[i]): int(labels[i]) for i in range(len(labels))}
-    true_healthy = {pid: label for pid, label in cluster_labels.items() if label == cluster_id}
-
-    # Print participant IDs in True Healthy cluster
-    print(f"\nTRUE HEALTHY PARTICIPANTS:")
-    print(f"Participant IDs in Cluster 0: {list(true_healthy.keys())}" + "\n")
-
-    # Update labels in dataframe
+    cluster_labels = {
+        int(all_healthy_participants[i]): int(labels[i]) 
+        for i in range(len(labels))
+    }
+    
+    true_healthy_pids = {
+        pid: label 
+        for pid, label in cluster_labels.items() 
+        if label == true_healthy_cluster_id
+    }
+    
+    print(f"\n✓ Found {len(true_healthy_pids)} participants in True Healthy cluster")
+    
+    # Update main dataframe
     metrics_df['study_group_cleaned'] = metrics_df['study_group']
-    metrics_df.loc[metrics_df['participant_id'].isin(true_healthy.keys()), 'study_group_cleaned'] = 'true_healthy'
     metrics_df.loc[
-        (metrics_df['study_group'] == 'healthy') & (~metrics_df['participant_id'].isin(true_healthy.keys())),
+        metrics_df['participant_id'].isin(true_healthy_pids.keys()), 
+        'study_group_cleaned'
+    ] = 'true_healthy'
+    metrics_df.loc[
+        (metrics_df['study_group'] == 'healthy') & 
+        (~metrics_df['participant_id'].isin(true_healthy_pids.keys())),
         'study_group_cleaned'
     ] = 'pre_diabetes_lifestyle'
-
-    # Save updated metrics
+    
+    # Save
     metrics_df.to_csv(SUMMARY_PATH, index=False)
-    logging.info("Updated summarized_metrics_all_participants.csv with 'study_group_cleaned' column.")
+    logging.info(f"Updated summarized_metrics_all_participants.csv with 'study_group_cleaned' column.")
+    
+    # ========================================
+    # STEP 6: VISUALIZATIONS
+    # ========================================
+    # (keep your existing visualization functions)
+    create_all_visualizations(X_scaled, labels, healthy_df, cluster_features, n_clusters, final_model, true_healthy_cluster_id)
+    print_cluster_summary(labels, healthy_df, true_healthy_cluster_id)
+    
+    # Add new visualization: K selection metrics
+    save_k_selection_metrics_plot(metrics_df_k)
+    
+    return metrics_df, labels, cluster_labels, n_clusters, true_healthy_cluster_id
 
-    return metrics_df, labels, cluster_labels
 
-def save_summary_report(metrics_df, labels, healthy_df):
+def save_k_selection_metrics_plot(metrics_df_k, chosen_k=None):
+    """Plot all K selection metrics (inertia, silhouette, DB, CH)."""
+    required = {"K", "Inertia", "Silhouette", "Davies_Bouldin", "Calinski_Harabasz"}
+    missing = required - set(metrics_df_k.columns)
+    if missing:
+        raise ValueError(f"metrics_df_k is missing required columns: {sorted(missing)}")
+
+    # Sort by K in case it isn't sorted
+    metrics_df_k = metrics_df_k.sort_values("K")
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    def maybe_vline(ax):
+        if chosen_k is not None:
+            ax.axvline(x=chosen_k, linestyle="--", linewidth=2, alpha=0.8, label=f"Chosen K={chosen_k}")
+            ax.legend(fontsize=9)
+
+    # Elbow curve (Inertia)
+    ax = axes[0, 0]
+    ax.plot(metrics_df_k["K"], metrics_df_k["Inertia"], marker="o")
+    ax.set_xlabel("K")
+    ax.set_ylabel("Inertia")
+    ax.set_title("Elbow Method (lower is better)")
+    ax.set_xticks(metrics_df_k["K"])
+    ax.grid(True, alpha=0.3)
+    maybe_vline(ax)
+
+    # Silhouette score
+    ax = axes[0, 1]
+    ax.plot(metrics_df_k["K"], metrics_df_k["Silhouette"], marker="o")
+    ax.set_xlabel("K")
+    ax.set_ylabel("Silhouette Score")
+    ax.set_title("Silhouette (higher is better)")
+    ax.set_xticks(metrics_df_k["K"])
+    ax.grid(True, alpha=0.3)
+    maybe_vline(ax)
+
+    # Davies-Bouldin Index
+    ax = axes[1, 0]
+    ax.plot(metrics_df_k["K"], metrics_df_k["Davies_Bouldin"], marker="o")
+    ax.set_xlabel("K")
+    ax.set_ylabel("Davies-Bouldin Index")
+    ax.set_title("Davies-Bouldin (lower is better)")
+    ax.set_xticks(metrics_df_k["K"])
+    ax.grid(True, alpha=0.3)
+    maybe_vline(ax)
+
+    # Calinski-Harabasz Score
+    ax = axes[1, 1]
+    ax.plot(metrics_df_k["K"], metrics_df_k["Calinski_Harabasz"], marker="o")
+    ax.set_xlabel("K")
+    ax.set_ylabel("Calinski-Harabasz Score")
+    ax.set_title("Calinski-Harabasz (higher is better)")
+    ax.set_xticks(metrics_df_k["K"])
+    ax.grid(True, alpha=0.3)
+    maybe_vline(ax)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "00_k_selection_metrics.png"), dpi=300, bbox_inches="tight")
+    plt.close()
+    logging.info("Saved: 00_k_selection_metrics.png")
+
+
+def save_summary_report(metrics_df, labels, healthy_df, true_healthy_cluster_id, n_clusters):
     """Save a comprehensive text summary report"""
     report_path = os.path.join(PLOTS_OUTPUT_DIR, "clustering_summary_report.txt")
-    
+
+    labels = np.asarray(labels)
+    if len(labels) != len(healthy_df):
+        raise ValueError(f"labels length ({len(labels)}) != healthy_df length ({len(healthy_df)}). Alignment issue.")
+
+    th_mask = labels == true_healthy_cluster_id
+    other_mask = ~th_mask
+
+    true_healthy_data = healthy_df.loc[th_mask]
+    other_data = healthy_df.loc[other_mask]
+
+    # Only compare metrics that actually exist
+    metrics_to_compare = ['tir_percent', 'tar_percent', 'tbr_percent',
+                          'mean_blood_glucose', 'cv_percent', 'mage']
+    metrics_to_compare = [m for m in metrics_to_compare if m in healthy_df.columns]
+
+    th_count = int(th_mask.sum())
+    healthy_n = len(healthy_df)
+    pct_th = (th_count / healthy_n * 100.0) if healthy_n else 0.0
+
     with open(report_path, 'w') as f:
         f.write("="*80 + "\n")
         f.write("TRUE HEALTHY CLUSTER IDENTIFICATION - COMPREHENSIVE REPORT\n")
         f.write("="*80 + "\n\n")
-        
+
         f.write("DATASET OVERVIEW:\n")
         f.write("-" * 50 + "\n")
         f.write(f"Total participants in analysis: {len(metrics_df)}\n")
-        f.write(f"Healthy participants (original): {len(healthy_df)}\n")
-        f.write(f"True healthy identified: {np.sum(labels == 0)}\n")
-        f.write(f"Percentage true healthy: {(np.sum(labels == 0)/len(healthy_df))*100:.1f}%\n\n")
-        
+        f.write(f"Healthy participants (original): {healthy_n}\n")
+        f.write(f"True healthy identified: {th_count}\n")
+        f.write(f"True healthy cluster ID: {true_healthy_cluster_id}\n")
+        f.write(f"Percentage true healthy: {pct_th:.1f}%\n\n")
+
         f.write("CLINICAL METRICS COMPARISON:\n")
         f.write("-" * 50 + "\n")
-        cluster_0_data = healthy_df.iloc[labels == 0]
-        other_data = healthy_df.iloc[labels != 0]
-        
-        metrics_to_compare = ['tir_percent', 'tar_percent', 'tbr_percent', 'mean_blood_glucose', 'cv_percent', 'mage']
-        
-        for metric in metrics_to_compare:
-            f.write(f"{metric}:\n")
-            f.write(f"  True Healthy: {cluster_0_data[metric].mean():.2f} ± {cluster_0_data[metric].std():.2f}\n")
-            f.write(f"  Other Groups: {other_data[metric].mean():.2f} ± {other_data[metric].std():.2f}\n")
-            f.write(f"  Difference: {cluster_0_data[metric].mean() - other_data[metric].mean():.2f}\n\n")
-        
+        if not metrics_to_compare:
+            f.write("No comparable metrics found in healthy_df.\n\n")
+        else:
+            for metric in metrics_to_compare:
+                th_mean = true_healthy_data[metric].mean()
+                th_std = true_healthy_data[metric].std()
+                oth_mean = other_data[metric].mean()
+                oth_std = other_data[metric].std()
+                diff = th_mean - oth_mean
+
+                f.write(f"{metric}:\n")
+                f.write(f"  True Healthy: {th_mean:.2f} ± {th_std:.2f}\n")
+                f.write(f"  Other Groups: {oth_mean:.2f} ± {oth_std:.2f}\n")
+                f.write(f"  Difference: {diff:.2f}\n\n")
+
         f.write("CLUSTER DISTRIBUTION:\n")
         f.write("-" * 50 + "\n")
-        for i in range(5):
-            count = np.sum(labels == i)
-            percentage = (count / len(labels)) * 100
-            cluster_name = "True Healthy" if i == 0 else f"Cluster {i}"
+        for i in range(n_clusters):
+            count = int(np.sum(labels == i))
+            percentage = (count / len(labels) * 100.0) if len(labels) else 0.0
+            cluster_name = f"True Healthy (Cluster {i})" if i == true_healthy_cluster_id else f"Cluster {i}"
             f.write(f"{cluster_name}: {count} participants ({percentage:.1f}%)\n")
-        
-        f.write(f"\nVISUALIZATION FILES GENERATED:\n")
+
+        f.write("\nVISUALIZATION FILES GENERATED:\n")
         f.write("-" * 50 + "\n")
         plot_descriptions = [
+            "00_k_selection_metrics.png - K selection metrics summary",
             "01_cluster_highlight.png - True Healthy cluster highlighted in red",
             "02_traditional_clusters.png - Traditional cluster visualization",
             "03_pca_view.png - PCA-transformed cluster view",
@@ -916,33 +1253,33 @@ def save_summary_report(metrics_df, labels, healthy_df):
             "10_clinical_metrics.png - Clinical metrics bar comparison",
             "11_elbow_curve.png - Elbow method for optimal clusters"
         ]
-        
         for desc in plot_descriptions:
             f.write(f"  {desc}\n")
-        
-        f.write(f"\nTRUE HEALTHY PARTICIPANT IDs:\n")
+
+        f.write("\nTRUE HEALTHY PARTICIPANT IDs:\n")
         f.write("-" * 50 + "\n")
-        true_healthy_ids = healthy_df.iloc[labels == 0]['participant_id'].tolist()
-        
-        # Write IDs in rows of 10
+        true_healthy_ids = true_healthy_data['participant_id'].tolist()
         for i in range(0, len(true_healthy_ids), 10):
             row_ids = true_healthy_ids[i:i+10]
             f.write(f"{', '.join(map(str, row_ids))}\n")
-        
-        f.write(f"\nMETHODOLOGY:\n")
+
+        f.write("\nMETHODOLOGY:\n")
         f.write("-" * 50 + "\n")
         f.write("1. Computed glycemic metrics for all participants\n")
         f.write("2. Filtered healthy participants from AI-READI dataset\n")
-        f.write("3. Applied K-means clustering (k=5) using TimeSeriesScalerMeanVariance\n")
-        f.write("4. Identified Cluster 0 as 'True Healthy' based on clinical criteria\n")
-        f.write("5. Validated using multiple visualization and statistical techniques\n")
-        f.write("6. Updated study group labels for subsequent analysis\n\n")
-        
+        f.write("3. Applied systematic K-means clustering evaluation (K=2 to K=10)\n")
+        f.write(f"4. Selected K={n_clusters} (see 00_k_selection_metrics.png)\n")
+        f.write(f"5. Identified Cluster {true_healthy_cluster_id} as 'True Healthy' based on clinical criteria\n")
+        f.write("6. Clinical criteria: TIR > 90%, CV < 20%, Mean glucose 70-120 mg/dL\n")
+        f.write("7. Validated using multiple visualization and statistical techniques\n")
+        f.write("8. Updated study group labels for subsequent analysis\n\n")
+
         f.write("="*80 + "\n")
         f.write(f"Report generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write("="*80 + "\n")
-    
+
     logging.info(f"Comprehensive summary report saved: {report_path}")
+
 
 def create_feature_explanation_table():
     """Create comprehensive feature explanation table and visualizations"""
@@ -1161,98 +1498,111 @@ def create_feature_explanation_table():
     return feature_df
 
 def create_feature_importance_summary():
-    """Create feature importance and correlation summary"""
-    
-    # Load your actual data to show real correlations
-    if os.path.exists(SUMMARY_PATH):
-        df = pd.read_csv(SUMMARY_PATH)
-        
-        # Select key features for correlation analysis
-        key_features = [
-            'mean_blood_glucose', 'std_dev', 'cv_percent',
-            'tir_percent', 'tar_percent', 'tbr_percent',
-            'mage', 'j_index', 'lability_index'
-        ]
-        
-        # Filter features that exist in the data
-        available_features = [f for f in key_features if f in df.columns]
-        
-        if len(available_features) > 3:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-            
-            # Correlation heatmap
-            corr_matrix = df[available_features].corr()
-            sns.heatmap(corr_matrix, annot=True, cmap='RdYlBu_r', center=0,
-                       ax=ax1, square=True, linewidths=0.5)
-            ax1.set_title('Feature Correlation Matrix', fontsize=14, fontweight='bold')
-            
-            # Feature distributions by study group - LINE PLOT VERSION
-            if 'study_group' in df.columns:
-                # Select a key feature for distribution comparison
-                feature_to_plot = 'tir_percent' if 'tir_percent' in available_features else available_features[0]
-                
-                # Create line plot using kernel density estimation
-                for i, group in enumerate(df['study_group'].unique()[:4]):  # Limit to 4 groups for clarity
-                    group_data = df[df['study_group'] == group][feature_to_plot].dropna()
-                    if len(group_data) > 5:  # Need at least 5 points for KDE
-                        # Calculate kernel density estimation
-                        from scipy.stats import gaussian_kde
-                        
-                        # Create density estimation
-                        kde = gaussian_kde(group_data)
-                        
-                        # Create x-axis range
-                        x_min, x_max = group_data.min(), group_data.max()
-                        x_range = np.linspace(x_min - (x_max - x_min) * 0.1, 
-                                            x_max + (x_max - x_min) * 0.1, 100)
-                        
-                        # Calculate density values
-                        density = kde(x_range)
-                        
-                        # Plot line
-                        colors = ['red', 'blue', 'green', 'orange']
-                        ax2.plot(x_range, density, 
-                                label=group, 
-                                linewidth=2.5, 
-                                alpha=0.8,
-                                color=colors[i % len(colors)])
-                        
-                        # Add mean line
-                        mean_val = group_data.mean()
-                        max_density = density.max()
-                        ax2.axvline(mean_val, 
-                                   color=colors[i % len(colors)], 
-                                   linestyle='--', 
-                                   alpha=0.6, 
-                                   linewidth=1.5)
-                        
-                        # Add mean value annotation
-                        ax2.annotate(f'{mean_val:.1f}', 
-                                   xy=(mean_val, max_density * 0.8), 
-                                   xytext=(5, 5), 
-                                   textcoords='offset points',
-                                   fontsize=9,
-                                   color=colors[i % len(colors)],
-                                   fontweight='bold')
-                
-                ax2.set_xlabel(feature_to_plot.replace('_', ' ').title(), fontsize=12)
-                ax2.set_ylabel('Density', fontsize=12)
-                ax2.set_title(f'{feature_to_plot.replace("_", " ").title()} Distribution by Study Group\n(Line Plot with KDE)', 
-                             fontsize=14, fontweight='bold')
-                ax2.legend(fontsize=10)
-                ax2.grid(True, alpha=0.3)
-                
-                # Improve layout
-                ax2.spines['top'].set_visible(False)
-                ax2.spines['right'].set_visible(False)
-            
-            plt.tight_layout()
-            plt.savefig(os.path.join(PLOTS_OUTPUT_DIR, "feature_correlations_and_distributions.png"), 
-                       dpi=300, bbox_inches='tight')
-            plt.close()
+    """Create feature importance and correlation summary (hardened)."""
+    os.makedirs(PLOTS_OUTPUT_DIR, exist_ok=True)
+
+    if not os.path.exists(SUMMARY_PATH):
+        logging.warning(f"SUMMARY_PATH not found: {SUMMARY_PATH}. Skipping feature importance summary.")
+        return
+
+    df = pd.read_csv(SUMMARY_PATH)
+
+    key_features = [
+        'mean_blood_glucose', 'std_dev', 'cv_percent',
+        'tir_percent', 'tar_percent', 'tbr_percent',
+        'mage', 'j_index', 'lability_index'
+    ]
+
+    available_features = [f for f in key_features if f in df.columns]
+
+    if len(available_features) <= 3:
+        logging.warning(f"Not enough available features for correlation plot (found {len(available_features)}). Skipping.")
+        return
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+    # --- Correlation heatmap (NaN-safe) ---
+    corr_matrix = df[available_features].corr()
+    corr_matrix = corr_matrix.replace([np.inf, -np.inf], np.nan).fillna(0)
+
+    sns.heatmap(
+        corr_matrix,
+        annot=True,
+        center=0,
+        ax=ax1,
+        square=True,
+        linewidths=0.5
+    )
+    ax1.set_title('Feature Correlation Matrix', fontsize=14, fontweight='bold')
+
+    # --- Distribution by study group (KDE, variance-safe) ---
+    if 'study_group' in df.columns:
+        feature_to_plot = 'tir_percent' if 'tir_percent' in available_features else available_features[0]
+
+        groups = df['study_group'].dropna().unique()[:4]
+        for i, group in enumerate(groups):
+            group_data = df.loc[df['study_group'] == group, feature_to_plot].dropna()
+
+            # Must have enough points AND variance
+            if len(group_data) <= 5 or group_data.nunique() <= 1:
+                continue
+
+            try:
+                from scipy.stats import gaussian_kde
+                kde = gaussian_kde(group_data)
+            except Exception as e:
+                logging.warning(f"KDE failed for group={group} on {feature_to_plot}: {e}")
+                continue
+
+            x_min, x_max = group_data.min(), group_data.max()
+            pad = (x_max - x_min) * 0.1 if x_max > x_min else 1.0
+            x_range = np.linspace(x_min - pad, x_max + pad, 100)
+
+            density = kde(x_range)
+
+            ax2.plot(x_range, density, label=str(group), linewidth=2.5, alpha=0.8)
+
+            mean_val = group_data.mean()
+            ax2.axvline(mean_val, linestyle='--', alpha=0.6, linewidth=1.5)
+
+            # annotate near the top
+            max_density = float(np.nanmax(density)) if len(density) else 0.0
+            ax2.annotate(
+                f'{mean_val:.1f}',
+                xy=(mean_val, max_density * 0.8),
+                xytext=(5, 5),
+                textcoords='offset points',
+                fontsize=9,
+                fontweight='bold'
+            )
+
+        ax2.set_xlabel(feature_to_plot.replace('_', ' ').title(), fontsize=12)
+        ax2.set_ylabel('Density', fontsize=12)
+        ax2.set_title(
+            f'{feature_to_plot.replace("_", " ").title()} Distribution by Study Group\n(Line Plot with KDE)',
+            fontsize=14, fontweight='bold'
+        )
+        ax2.legend(fontsize=10)
+        ax2.grid(True, alpha=0.3)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+    else:
+        ax2.axis('off')
+        ax2.text(0.5, 0.5, "study_group column not found\n(skipping KDE plot)", ha='center', va='center')
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(PLOTS_OUTPUT_DIR, "feature_correlations_and_distributions.png"),
+        dpi=300,
+        bbox_inches='tight'
+    )
+    plt.close()
+    logging.info("Saved: feature_correlations_and_distributions.png")
+
 
 def create_clinical_interpretation_guide():
     """Create a clinical interpretation guide for features"""
+    os.makedirs(PLOTS_OUTPUT_DIR, exist_ok=True)
     
     clinical_guide = {
         'Metric': [
@@ -1348,37 +1698,34 @@ def main():
 
     # Check if required columns exist
     required_cols = {'mean_blood_glucose', 'std_dev', 'cv_percent', 'tir_percent', 'tbr_percent', 
-                     'mage', 'lability_index', 'conga_2h'}
+                        'mage', 'lability_index', 'conga_2h'}
     
-    if required_cols.issubset(set(metrics_df.columns)):
-        # Perform enhanced clustering with visualization
-        updated_metrics_df, labels, cluster_labels = cluster_healthy_participants_enhanced(metrics_df)
-        
-        # Get healthy participants data for report
-        healthy_df = metrics_df[metrics_df['study_group'] == 'healthy']
-        
-        # Save comprehensive report
-        save_summary_report(updated_metrics_df, labels, healthy_df)
-        
-        print(f"\nANALYSIS COMPLETE!")
-        print(f"All outputs saved to: {PLOTS_OUTPUT_DIR}")
-        print(f"{len(os.listdir(PLOTS_OUTPUT_DIR))} files generated")
-
-        # CREATE FEATURE DOCUMENTATION (ADD THIS)
-        print("Creating feature engineering documentation table..." + "\n")
-        feature_df = create_feature_explanation_table()
-        create_clinical_interpretation_guide()
-        
-    else:
+    if not required_cols.issubset(set(metrics_df.columns)):
         logging.warning("Required metrics not found in existing file. Recomputing metrics.")
         metrics_df = compute_participant_metrics()
-        updated_metrics_df, labels, cluster_labels = cluster_healthy_participants_enhanced(metrics_df)
-        
-        # Get healthy participants data for report
-        healthy_df = metrics_df[metrics_df['study_group'] == 'healthy']
-        
-        # Save comprehensive report
-        save_summary_report(updated_metrics_df, labels, healthy_df)
+
+    # Run clustering
+    updated_metrics_df, labels, cluster_labels, n_clusters, true_healthy_cluster_id = \
+        cluster_healthy_participants_enhanced(metrics_df)
+
+    labels = np.asarray(labels)
+
+    # IMPORTANT: build healthy_df from UPDATED df and reset index to align with labels
+    healthy_df = updated_metrics_df.loc[updated_metrics_df['study_group'] == 'healthy']
+
+    # Save report (optional but useful)
+    save_summary_report(updated_metrics_df, labels, healthy_df, true_healthy_cluster_id, n_clusters)
+
+    # Optional docs
+    GENERATE_DOCS = True   # flip to False if you don’t want them
+    if GENERATE_DOCS:
+        print("Creating feature engineering documentation table...\n")
+        create_feature_explanation_table()
+        create_clinical_interpretation_guide()
+
+    print(f"\nANALYSIS COMPLETE!")
+    print(f"All outputs saved to: {PLOTS_OUTPUT_DIR}")
+    print(f"{len(os.listdir(PLOTS_OUTPUT_DIR))} files generated")
 
 if __name__ == '__main__':
     main()
