@@ -1,7 +1,6 @@
 __CURR_FILE__ = "time_series_data_prepration_v1"
 
 import logging
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 # === Imports ===
 import os
@@ -85,8 +84,9 @@ def add_rolling_features(df):
         )
         
         # Calculate glucose change rate (mg/dL per 5-minute interval)
-        df['glucose_change_rate'] = df['glucose_diff'] / 5.0  # assuming 5-minute intervals
-        
+        # df['glucose_change_rate'] = df['glucose_diff'] / 5.0  # assuming 5-minute intervals
+        # This has been omitted because glucose_diff already represents the change per 5-minute interval.
+
         # Fill any remaining NaN values in glucose_rollstd_1h with 0 (for first record of each participant)
         df['glucose_rollstd_1h'] = df['glucose_rollstd_1h'].fillna(0)
         
@@ -182,7 +182,7 @@ def process_and_augment_batches():
                 df = df[df['participant_id'].isin(valid_participants)]
                 df = df.groupby('participant_id').head(2138).reset_index(drop=True)
                 
-                logging.info(f"Filtered to {len(valid_participants)} participants with ≥2138 records")
+                logging.info(f"Filtered to {len(valid_participants)} participants with >= 2138 records")
                 logging.info(f"Total records after filtering: {len(df)}")
 
                 # Step 3: Feature engineering
