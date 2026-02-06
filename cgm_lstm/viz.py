@@ -80,3 +80,46 @@ class Visualizer:
             plt.show()
         except Exception as e:
             logger.error(f"Error plotting confusion matrix: {e}")
+    
+    @staticmethod
+    def plot_reliability_curve(prob_pred, prob_true, save_path=None):
+        try:
+            plt.figure(figsize=(7, 6))
+            plt.plot([0, 1], [0, 1], linestyle="--", lw=2)
+            plt.plot(prob_pred, prob_true, marker="o")
+            plt.xlabel("Mean predicted probability")
+            plt.ylabel("Observed fraction positive")
+            plt.title("Reliability Diagram (Calibration Curve)")
+            plt.grid(True, alpha=0.3)
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches="tight")
+                logger.info(f"[PLOT] Reliability curve saved to {save_path}")
+            plt.show()
+        except Exception as e:
+            logger.error(f"Error plotting reliability curve: {e}")
+
+    @staticmethod
+    def plot_threshold_sensitivity(thresholds: np.ndarray, metrics: Dict[str, List[float]], save_path: Optional[str] = None) -> None:
+        """
+        Plots metric values vs decision threshold.
+        This helps assess how stable performance is as the threshold changes.
+        """
+        try:
+            plt.figure(figsize=(9, 6))
+            for k, vals in metrics.items():
+                if k == "thresholds":
+                    continue
+                plt.plot(thresholds, vals, label=k)
+            plt.xlabel("Decision Threshold")
+            plt.ylabel("Metric Value")
+            plt.title("Threshold Sensitivity Analysis")
+            plt.grid(True, alpha=0.3)
+            plt.legend()
+
+            if save_path:
+                plt.savefig(save_path, dpi=300, bbox_inches='tight')
+                logger.info(f"[PLOT] Threshold sensitivity saved to {save_path}")
+            plt.show()
+        except Exception as e:
+            logger.error(f"Error plotting threshold sensitivity: {e}")
+
