@@ -10,3 +10,4 @@ tslearn
 scipy
 shap
 lime
+kneed
