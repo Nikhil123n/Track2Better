@@ -12,16 +12,11 @@ from typing import List, Tuple, Dict, Any
 import numpy as np
 import pandas as pd
 from glob import glob
-from sklearn.preprocessing import LabelEncoder
-
 import tensorflow as tf
 
 logger = logging.getLogger(__name__)
 
-# Reproducibility
 RANDOM_SEED = 42
-np.random.seed(RANDOM_SEED)
-tf.random.set_seed(RANDOM_SEED)
 
 from paths import PILOT_ROOT_DATA_PATH, AUGMENTED_OUTPUT_DIR
 
@@ -49,18 +44,30 @@ class Config:
     # Data
     expected_sequence_length: int = 2138
     selected_features: List[str] = None
+    binary_features: List[str] = None
 
-    # Model
+    # Model — LSTM-only (used when use_conv_frontend=False)
     lstm_units_1: int = 32
     lstm_units_2: int = 16
     dense_units: int = 16
     dropout_rate: float = 0.3
 
+    # Model — Conv1D frontend (default architecture)
+    use_conv_frontend: bool = True
+    conv_filters_1: int = 32
+    conv_kernel_1: int = 7
+    conv_pool_1: int = 4
+    conv_filters_2: int = 64
+    conv_kernel_2: int = 5
+    conv_pool_2: int = 4
+    lstm_bidirectional: bool = True
+    l2_reg: float = 1e-3  # OPTIMAL VALUE (validated via experiments) - Best balance of performance & calibration
+
     # Training
     batch_size: int = 16
     epochs: int = 30
     test_size: float = 0.2           # fraction to hold out for TEST
-    val_size_from_train: float = 0.2 # fraction of TRAIN to use as VAL
+    val_size_from_train: float = 0.2 # fraction of TRAIN to use as VAL (optimal balance for 491 participants)
     early_stopping_patience: int = 8
 
     # Cross-validation (participant-level)
@@ -68,6 +75,7 @@ class Config:
     cv_n_splits: int = 5
     cv_shuffle: bool = True
     cv_save_fold_models: bool = False  # saves best_model.keras per fold (optional)
+    train_final_model_after_cv: bool = True  # train production model on all data after CV
 
     # Imbalance handling
     use_smote: bool = False            # OFF by default (sequence aware)
@@ -87,7 +95,19 @@ class Config:
     save_collinearity_heatmap: bool = True
 
     # Calibration
+    use_temperature_scaling: bool = True
     calibration_bins: int = 10
+
+    # Confidence-based prediction (3-tier classification)
+    use_confidence_based_prediction: bool = False  # Turn on/off confidence-based rules
+    confidence_high_threshold: float = 0.65        # prob >= 0.65: High confidence Pre-Diabetes
+    confidence_low_threshold: float = 0.35         # prob < 0.35: High confidence Healthy
+                                                    # 0.35 <= prob < 0.65: Uncertain (OGTT needed)
+
+    # Held-out test set (final generalization test)
+    use_held_out_test: bool = True                # Turn on/off held-out test set
+    held_out_test_size: float = 0.2                # Proportion of data for held-out test (e.g., 0.2 = 20%)
+    held_out_random_seed: int = 42                 # Seed for held-out split (for reproducibility)
 
     # Threshold sweep (sensitivity analysis)
     thr_sweep_min: float = 0.05
@@ -102,18 +122,25 @@ class Config:
         - Ensure model and augmented data directories exist.
         - Log resolved paths for traceability.
         """
+        # Set seeds at config init (not at module import) to avoid side effects
+        np.random.seed(self.random_seed)
+        tf.random.set_seed(self.random_seed)
+
         if self.selected_features is None:
             self.selected_features = [
-                'glucose_accel',                
-                'glucose_change_rate',
+                'glucose_accel',
                 'cos_hour',
                 'blood_glucose_value',
                 'glucose_rollmean_1h',
+                'glucose_rollstd_1h',
                 'glucose_diff',
-                'sin_hour',                
+                'sin_hour',
                 'is_meal_time',
                 'is_night'
             ]
+
+        if self.binary_features is None:
+            self.binary_features = ['is_meal_time', 'is_night']
 
         # Timestamp-based version folder to keep runs separated
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -161,19 +188,20 @@ class DataValidator:
 
     @staticmethod
     def validate_features(df: pd.DataFrame, features: List[str]) -> pd.DataFrame:
-        """Apply simple cleaning and diagnostics on feature columns.
-            - Fills NaNs in `glucose_rollstd_1h` (if present) to avoid propagation.
-            - Logs any NaNs found in the selected features for future inspection.
-            Returns a copy of the DataFrame to avoid modifying the original.
+        """Check feature columns for NaN values and log diagnostics.
+
+        This method only performs READ-ONLY diagnostics. It does NOT impute
+        NaN values — imputation is deferred to per-participant sequence
+        creation (nan_to_num in create_lstm_sequences) to avoid data leakage.
+
+        Returns a copy of the DataFrame (unmodified except for the copy).
         """
         df = df.copy()
 
-        # Backward-compatibility / safety for older pipelines that included this feature
-        if 'glucose_rollstd_1h' in df.columns:
-            df['glucose_rollstd_1h'] = df['glucose_rollstd_1h'].fillna(0)
         nan_counts = df[features].isna().sum()
         if nan_counts.any():
-            logger.warning(f"[WARNING] NaN values found: {nan_counts[nan_counts>0].to_dict()}")
+            logger.warning(f"[WARNING] NaN values found (will be imputed per-participant): "
+                           f"{nan_counts[nan_counts>0].to_dict()}")
         return df
 
 
@@ -189,8 +217,6 @@ class DataLoader:
         """Initialize the DataLoader with configuration and validators."""
         self.config = config
         self.validator = DataValidator()
-        # Kept for future compatibility if label encoding is needed later
-        self.label_encoder = LabelEncoder()
 
     def load_augmented_data(self) -> pd.DataFrame:
         """Load all augmented CSV batches into a single DataFrame.
@@ -282,18 +308,13 @@ class DataLoader:
         return X, y, pid_array
 
     def save_processed_data(self, X: np.ndarray, y: np.ndarray, pid_array: np.ndarray) -> None:
-        """Save processed numpy arrays and label encoder to disk.
+        """Save processed numpy arrays to disk.
             This writes:
             - X_lstm.npy: 3D feature array
             - y_lstm_binary.npy: 1D labels
             - pid_lstm.npy: participant IDs
-            - label_encoder.pkl: placeholder encoder for future use
         """
         np.save(os.path.join(self.config.models_dir, 'X_lstm.npy'), X)
         np.save(os.path.join(self.config.models_dir, 'y_lstm_binary.npy'), y)
         np.save(os.path.join(self.config.models_dir, 'pid_lstm.npy'), pid_array)
-        # Save label encoder if needed later
-        import pickle
-        with open(os.path.join(self.config.models_dir, 'label_encoder.pkl'), 'wb') as f:
-            pickle.dump(self.label_encoder, f)
         logger.info(f"Saved processed data to {self.config.models_dir}")

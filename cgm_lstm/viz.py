@@ -44,7 +44,7 @@ class Visualizer:
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 logger.info(f"[PLOT] Training curves saved to {save_path}")
-            plt.show()
+            plt.close()
         except Exception as e:
             logger.error(f"Error plotting training curves: {e}")
 
@@ -61,7 +61,7 @@ class Visualizer:
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 logger.info(f"[PLOT] ROC curve saved to {save_path}")
-            plt.show()
+            plt.close()
         except Exception as e:
             logger.error(f"Error plotting ROC curve: {e}")
 
@@ -77,7 +77,7 @@ class Visualizer:
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 logger.info(f"[PLOT] Confusion matrix saved to {save_path}")
-            plt.show()
+            plt.close()
         except Exception as e:
             logger.error(f"Error plotting confusion matrix: {e}")
     
@@ -94,7 +94,7 @@ class Visualizer:
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches="tight")
                 logger.info(f"[PLOT] Reliability curve saved to {save_path}")
-            plt.show()
+            plt.close()
         except Exception as e:
             logger.error(f"Error plotting reliability curve: {e}")
 
@@ -119,7 +119,7 @@ class Visualizer:
             if save_path:
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 logger.info(f"[PLOT] Threshold sensitivity saved to {save_path}")
-            plt.show()
+            plt.close()
         except Exception as e:
             logger.error(f"Error plotting threshold sensitivity: {e}")
 
