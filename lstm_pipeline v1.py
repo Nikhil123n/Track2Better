@@ -8,16 +8,36 @@ import logging
 
 from cgm_lstm import Config, LSTMPipeline
 
-# Logging configuration (matches your original settings)
+# Initial logging configuration (will be reconfigured after model folder is created)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("lstm_pipeline.log", encoding="utf-8"),
-        logging.StreamHandler(),
+        logging.StreamHandler(),  # Console only initially
     ],
 )
 logger = logging.getLogger(__name__)
+
+
+def setup_logging_to_model_folder(model_dir: str):
+    """Reconfigure logging to save log file in model folder.
+
+    Parameters
+    ----------
+    model_dir : str
+        Path to model directory (e.g., ./models/model_20260208_185255/)
+    """
+    log_file = os.path.join(model_dir, "lstm_pipeline.log")
+
+    # Add file handler to root logger
+    root_logger = logging.getLogger()
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    root_logger.addHandler(file_handler)
+
+    logger.info(f"[LOG] Log file configured: {log_file}")
 
 
 def list_model_versions(models_base_dir: str = "./models") -> None:
@@ -68,15 +88,39 @@ def main() -> None:
         list_model_versions()
 
         config = Config()
+
+        # Setup logging to model folder (now that config has created the folder)
+        setup_logging_to_model_folder(config.models_dir)
+
         config.use_cross_validation = True
         config.cv_n_splits = 5
         config.cv_save_fold_models = False  # keep off initially
-        
+
+        # ===== CONFIDENCE-BASED PREDICTION RULES =====
+        # Turn ON to enable 3-tier prediction (High Conf Pre-D | Uncertain/OGTT | High Conf Healthy)
+        # Turn OFF to use standard binary classification (default)
+        config.use_confidence_based_prediction = True  # ← Turn ON/OFF here
+        config.confidence_high_threshold = 0.65  # prob >= 0.65: High confidence Pre-Diabetes
+        config.confidence_low_threshold = 0.35   # prob < 0.35: High confidence Healthy
+        # ============================================
+
+        # ===== HELD-OUT TEST SET (TRUE GENERALIZATION) =====
+        # Turn ON to split data into train+val (for CV) and held-out test (never seen)
+        # Turn OFF to use CV without held-out test (use all data for CV)
+        config.use_held_out_test = True  # ← Turn ON/OFF here
+        config.held_out_test_size = 0.2   # 20% of data for held-out test
+        config.held_out_random_seed = 42  # For reproducible splits
+        #
+        # When ON:  Total 491 → Train+Val 393 (80%) | Held-Out Test 98 (20%)
+        # When OFF: Total 491 → All used for CV (current behavior)
+        # ===================================================
+
         pipeline = LSTMPipeline(config)
         results = pipeline.run_full_pipeline()
 
         print("\nTraining completed successfully!")
         print(f"New version created: {results['version_folder']}")
+        print(f"Log file: {config.models_dir}/lstm_pipeline.log")
         print("Use this version folder name for analysis scripts!")
     except Exception as e:
         logger.error(f"Main execution failed: {e}")
