@@ -5,7 +5,7 @@ __CURR_FILE__ = "xgboost_relabel_truehealthy v2"
 Iterative Relabeling with XGBoost
 
 This script implements an iterative relabeling algorithm using an XGBoost
-classifier. The goal is to identify participants misclassified as 'true_healthy'
+classifier. The goal is to identify participants misclassified as 'CGM-Healthy'
 and relabel them, progressively refining the dataset over multiple iterations.
 
 The workflow includes:
@@ -14,7 +14,7 @@ The workflow includes:
 3. Handling class imbalance using SMOTE
 4. Training an XGBoost classifier
 5. Evaluating the model using confusion matrix & metrics
-6. Identifying participants repeatedly classified as 'true_healthy'
+6. Identifying participants repeatedly classified as 'CGM-Healthy'
 7. Relabeling those participants and repeating until convergence
 
 Why this approach?
@@ -322,6 +322,12 @@ def evaluate_model(model, X_test, y_test_eval_encoded, le, y_test_original_str=N
             plt.yticks(rotation=0)
             plt.title("Confusion Matrix", fontsize=16)
             plt.tight_layout()
+            # save plot and create dir of CURR_FILE if it doesn't exist and version tghe confusion matrix plot for this iteration
+            plot_dir = os.path.join(LOG_DIR, __CURR_FILE__)
+            os.makedirs(plot_dir, exist_ok=True)
+            plot_path = os.path.join(plot_dir, f"confusion_matrix_iteration.png")
+            plt.savefig(plot_path)
+            logging.info(f"Confusion matrix saved to: {plot_path}")
             # plt.show()
         except Exception as e:
             logging.warning(f"Could not display confusion matrix: {str(e)}")
@@ -336,10 +342,10 @@ def evaluate_model(model, X_test, y_test_eval_encoded, le, y_test_original_str=N
 # === IDENTIFY MISCLASSIFIED PARTICIPANTS ===
 # def identify_misclassified(y_test, y_pred, pid_test, le):
 #     """
-#     Finds participants misclassified as 'true_healthy'.
+#     Finds participants misclassified as 'CGM-Healthy'.
 
 #     Returns:
-#         misclassified_as_true_healthy (list)
+#         misclassified_as_CGM_Healthy (list)
 #     """
     
 #     try:
@@ -347,25 +353,25 @@ def evaluate_model(model, X_test, y_test_eval_encoded, le, y_test_original_str=N
 #         true_labels = le.inverse_transform(y_test)
 #         pred_labels = le.inverse_transform(y_pred)
         
-#         # Find misclassified as 'true_healthy'
-#         misclassified_as_true_healthy = [
+#         # Find misclassified as 'CGM-Healthy'
+#         misclassified_as_CGM_Healthy = [
 #             pid for pid, true_lbl, pred_lbl in zip(pid_test, true_labels, pred_labels)
-#             if pred_lbl == 'true_healthy' and true_lbl != 'true_healthy'
+#             if pred_lbl == 'CGM-Healthy' and true_lbl != 'CGM-Healthy'
 #         ]
-#         logging.info(f"Misclassified as 'true_healthy': {len(misclassified_as_true_healthy)} participants")
-#         if misclassified_as_true_healthy:
-#             logging.info(f"IDs: {sorted([int(pid) for pid in misclassified_as_true_healthy])}")
+#         logging.info(f"Misclassified as 'CGM-Healthy': {len(misclassified_as_CGM_Healthy)} participants")
+#         if misclassified_as_CGM_Healthy:
+#             logging.info(f"IDs: {sorted([int(pid) for pid in misclassified_as_CGM_Healthy])}")
 
-#         # Find healthy misclassified as 'true_healthy'
-#         misclassified_healthy_as_true_healthy = [
+#         # Find healthy misclassified as 'CGM-Healthy'
+#         misclassified_healthy_as_CGM_Healthy = [
 #             pid for pid, true_lbl, pred_lbl in zip(pid_test, true_labels, pred_labels)
-#             if true_lbl == 'healthy' and pred_lbl == 'true_healthy'
+#             if true_lbl == 'healthy' and pred_lbl == 'CGM-Healthy'
 #         ]
-#         logging.info(f"Healthy misclassified as 'true_healthy': {len(misclassified_healthy_as_true_healthy)} participants")
-#         if misclassified_healthy_as_true_healthy:
-#             logging.info(f"IDs: {sorted([int(pid) for pid in misclassified_healthy_as_true_healthy])}")
+#         logging.info(f"Healthy misclassified as 'CGM-Healthy': {len(misclassified_healthy_as_CGM_Healthy)} participants")
+#         if misclassified_healthy_as_CGM_Healthy:
+#             logging.info(f"IDs: {sorted([int(pid) for pid in misclassified_healthy_as_CGM_Healthy])}")
 
-#         return misclassified_as_true_healthy
+#         return misclassified_as_CGM_Healthy
     
 #     except Exception as e:
 #         logging.error(f"Error identifying misclassified participants: {str(e)}")
@@ -377,9 +383,9 @@ def get_oof_relabel_candidates(df_train_pool, le):
     Uses RepeatedStratifiedKFold OOF predictions on TRAIN pool to select relabel candidates.
 
     Relabel rule:
-      - predicted label == 'true_healthy' in >= RELABEL_MIN_OOF_VOTES OOF rounds
-      - AND mean predicted probability for true_healthy >= RELABEL_PROBA_THRESHOLD
-      - AND current true label != 'true_healthy'
+      - predicted label == 'CGM-Healthy' in >= RELABEL_MIN_OOF_VOTES OOF rounds
+      - AND mean predicted probability for CGM-Healthy >= RELABEL_PROBA_THRESHOLD
+      - AND current true label != 'CGM-Healthy'
 
     Returns:
       candidate_ids (list)
@@ -387,7 +393,7 @@ def get_oof_relabel_candidates(df_train_pool, le):
     """
     # WHY RepeatedStratifiedKFold:
     # We want "votes" across multiple independent splits to reduce randomness.
-    # A participant must be predicted 'true_healthy' consistently (votes) and confidently (prob threshold).
+    # A participant must be predicted 'CGM-Healthy' consistently (votes) and confidently (prob threshold).
     #
     # WHY votes + probability threshold:
     # Votes ensure stability across repeats; probability ensures confidence in the prediction.
@@ -400,11 +406,11 @@ def get_oof_relabel_candidates(df_train_pool, le):
     # Encode using provided encoder classes (must be consistent across iterations)
     y_pool = le.transform(y_pool_str)
 
-    if 'true_healthy' not in le.classes_:
-        logging.warning("'true_healthy' not found in label encoder classes. No relabeling possible.")
+    if 'CGM-Healthy' not in le.classes_:
+        logging.warning("'CGM-Healthy' not found in label encoder classes. No relabeling possible.")
         return [], pd.DataFrame()
 
-    th_class_idx = int(np.where(le.classes_ == 'true_healthy')[0][0])
+    th_class_idx = int(np.where(le.classes_ == 'CGM-Healthy')[0][0])
 
     # NEW: repeated CV so votes are meaningful
     rskf = RepeatedStratifiedKFold(
@@ -446,7 +452,7 @@ def get_oof_relabel_candidates(df_train_pool, le):
 
     # Candidate selection
     current_labels = y_pool_str.values
-    is_not_truehealthy = current_labels != 'true_healthy'
+    is_not_truehealthy = current_labels != 'CGM-Healthy'
     high_votes = votes_truehealthy >= RELABEL_MIN_OOF_VOTES
     high_proba = proba_mean_truehealthy >= RELABEL_PROBA_THRESHOLD
 
@@ -473,7 +479,7 @@ def get_oof_relabel_candidates(df_train_pool, le):
 # === RELABELING FUNCTION ===
 def relabel_and_save(df, ids_to_relabel, iteration):
     """
-    Updates the dataset by relabeling specific participants as 'true_healthy'.
+    Updates the dataset by relabeling specific participants as 'CGM-Healthy'.
     Saves back to SUMMARY_PATH (as requested).
 
     Args:
@@ -507,11 +513,11 @@ def relabel_and_save(df, ids_to_relabel, iteration):
         before = df.loc[df['participant_id'].isin(ids_to_relabel), ['participant_id', 'study_group_cleaned']].copy()
 
         # Relabel participants
-        df.loc[df['participant_id'].isin(ids_to_relabel), 'study_group_cleaned'] = 'true_healthy'
+        df.loc[df['participant_id'].isin(ids_to_relabel), 'study_group_cleaned'] = 'CGM-Healthy'
 
         after = df.loc[df['participant_id'].isin(ids_to_relabel), ['participant_id', 'study_group_cleaned']].copy()
 
-        logging.info(f"Relabeled {len(ids_to_relabel)} participants as 'true_healthy' (iteration={iteration}).")
+        logging.info(f"Relabeled {len(ids_to_relabel)} participants as 'CGM-Healthy' (iteration={iteration}).")
         logging.info(f"Sample relabels (first 20): {before.head(20).to_dict(orient='records')}")
 
         # Save updated dataset (you said you WANT to overwrite original)

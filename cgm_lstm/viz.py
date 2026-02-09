@@ -70,8 +70,8 @@ class Visualizer:
         try:
             plt.figure(figsize=(8, 6))
             sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues',
-                        xticklabels=['Not Healthy', 'Healthy'],
-                        yticklabels=['Not Healthy', 'Healthy'])
+                        xticklabels=['Not Healthy', 'CGM-Healthy'],
+                        yticklabels=['Not Healthy', 'CGM-Healthy'])
             plt.title('Confusion Matrix')
             plt.xlabel('Predicted'); plt.ylabel('Actual')
             if save_path:

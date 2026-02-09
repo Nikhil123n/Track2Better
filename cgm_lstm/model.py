@@ -488,14 +488,14 @@ class LSTMTrainer:
         """
         Evaluate using 3-tier confidence-based prediction rules.
 
-        IMPORTANT: y_prob is the model's predicted probability of Class 1 (Healthy).
-        - HIGH y_prob (e.g., 0.9) = High confidence patient is HEALTHY
-        - LOW y_prob (e.g., 0.1) = Low confidence patient is healthy = High confidence PRE-DIABETES
+        IMPORTANT: y_prob is the model's predicted probability of Class 1 (CGM-Healthy).
+        - HIGH y_prob (e.g., 0.9) = High confidence patient is CGM-Healthy
+        - LOW y_prob (e.g., 0.1) = Low confidence patient is CGM-Healthy = High confidence PRE-DIABETES
 
         Zones (correctly mapped to model output):
-        - High Confidence Pre-Diabetes: prob < confidence_low_threshold (low prob of healthy = high risk)
+        - High Confidence Pre-Diabetes: prob < confidence_low_threshold (low prob of CGM-Healthy = high risk)
         - Uncertain (needs OGTT): confidence_low_threshold <= prob < confidence_high_threshold (middle range)
-        - High Confidence Healthy: prob >= confidence_high_threshold (high prob of healthy = low risk)
+        - High Confidence CGM-Healthy: prob >= confidence_high_threshold (high prob of CGM-Healthy = low risk)
 
         Returns metrics for each zone and overall detection/false positive rates.
         """
@@ -503,9 +503,9 @@ class LSTMTrainer:
         low_thr = self.config.confidence_low_threshold
 
         # Classify into 3 zones (CORRECTED: swapped to match model output semantics)
-        high_conf_prediabetes_mask = (y_prob < low_thr)           # Low prob of healthy = Pre-Diabetes
+        high_conf_prediabetes_mask = (y_prob < low_thr)           # Low prob of CGM-Healthy = Pre-Diabetes
         uncertain_mask = (y_prob >= low_thr) & (y_prob < high_thr)  # Middle range
-        high_conf_healthy_mask = (y_prob >= high_thr)             # High prob of healthy = Healthy
+        high_conf_healthy_mask = (y_prob >= high_thr)             # High prob of CGM-Healthy = CGM-Healthy
 
         # Count samples in each zone
         n_high_conf_prediabetes = int(np.sum(high_conf_prediabetes_mask))
@@ -513,7 +513,7 @@ class LSTMTrainer:
         n_high_conf_healthy = int(np.sum(high_conf_healthy_mask))
         n_total = len(y_true)
 
-        # Ground truth: 0 = Pre-Diabetes, 1 = Healthy
+        # Ground truth: 0 = Pre-Diabetes, 1 = CGM-Healthy
         n_true_prediabetes = int(np.sum(y_true == 0))
         n_true_healthy = int(np.sum(y_true == 1))
 
@@ -538,12 +538,12 @@ class LSTMTrainer:
             zone2_prediabetes_rate = 0.0
             zone2_recall_contribution = 0.0
 
-        # Zone 3: High Confidence Healthy
+        # Zone 3: High Confidence CGM-Healthy
         if n_high_conf_healthy > 0:
             zone3_true_healthy = int(np.sum((y_true == 1) & high_conf_healthy_mask))
             zone3_precision = zone3_true_healthy / n_high_conf_healthy
             zone3_specificity = zone3_true_healthy / n_true_healthy if n_true_healthy > 0 else 0.0
-            # False negatives in zone 3 (pre-diabetes classified as healthy)
+            # False negatives in zone 3 (pre-diabetes classified as CGM-Healthy)
             zone3_false_negatives = int(np.sum((y_true == 0) & high_conf_healthy_mask))
         else:
             zone3_precision = 0.0
@@ -556,7 +556,7 @@ class LSTMTrainer:
         total_detected_prediabetes = zone1_true_prediabetes + zone2_true_prediabetes
         prediabetes_detection_rate = (total_detected_prediabetes / n_true_prediabetes * 100) if n_true_prediabetes > 0 else 0.0
 
-        # False positive rate (healthy classified as pre-diabetes in Zone 1)
+        # False positive rate (CGM-Healthy classified as pre-diabetes in Zone 1)
         zone1_false_positives = int(np.sum((y_true == 1) & high_conf_prediabetes_mask))
         false_positive_rate = (zone1_false_positives / n_true_healthy * 100) if n_true_healthy > 0 else 0.0
 
@@ -589,7 +589,7 @@ class LSTMTrainer:
             'zone2_recall_contribution': zone2_recall_contribution * 100,
             'ogtt_burden': ogtt_burden,
 
-            # Zone 3 metrics (High Conf Healthy)
+            # Zone 3 metrics (High Conf CGM-Healthy)
             'zone3_precision': zone3_precision * 100,
             'zone3_specificity': zone3_specificity * 100,
             'zone3_true_healthy': zone3_true_healthy,
@@ -686,7 +686,7 @@ class LSTMTrainer:
             logger.info("\n[CONFIDENCE] 3-Tier Confidence-Based Evaluation:")
             logger.info(f"  High Confidence Pre-Diabetes (≥{self.config.confidence_high_threshold:.2f}): {confidence_metrics['n_high_conf_prediabetes']} samples ({confidence_metrics['pct_high_conf_prediabetes']:.1f}%)")
             logger.info(f"  Uncertain (needs OGTT) [{self.config.confidence_low_threshold:.2f}-{self.config.confidence_high_threshold:.2f}): {confidence_metrics['n_uncertain']} samples ({confidence_metrics['pct_uncertain']:.1f}%)")
-            logger.info(f"  High Confidence Healthy (<{self.config.confidence_low_threshold:.2f}): {confidence_metrics['n_high_conf_healthy']} samples ({confidence_metrics['pct_high_conf_healthy']:.1f}%)")
+            logger.info(f"  High Confidence CGM-Healthy (<{self.config.confidence_low_threshold:.2f}): {confidence_metrics['n_high_conf_healthy']} samples ({confidence_metrics['pct_high_conf_healthy']:.1f}%)")
             logger.info(f"[CONFIDENCE] Pre-Diabetes Detection Rate: {confidence_metrics['prediabetes_detection_rate']:.1f}% (across all zones)")
             logger.info(f"[CONFIDENCE] False Positive Rate: {confidence_metrics['false_positive_rate']:.1f}%")
 
