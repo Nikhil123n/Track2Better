@@ -78,7 +78,7 @@ except ImportError:
 from paths import LOG_DIR
 
 # ---------------------------------------------------------------------------
-# Logging setup
+# Basic logging setup (will be enhanced per-analysis in ProductionModelAnalyzer)
 # ---------------------------------------------------------------------------
 __CURR_FILE__ = "time_series_lstm_analyze_model v3"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -87,11 +87,63 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR, __CURR_FILE__ + ".log"), encoding="utf-8"),
-        logging.StreamHandler(),
+        logging.StreamHandler(),  # Console only for now
     ],
 )
 logger = logging.getLogger(__name__)
+
+
+# ===========================================================================
+# Helper Classes for Comprehensive Logging
+# ===========================================================================
+class TeeOutput:
+    """Redirect stdout to both console and log file"""
+    def __init__(self, file_path, original_stdout):
+        self.file = open(file_path, 'a', encoding='utf-8')
+        self.stdout = original_stdout
+
+    def write(self, message):
+        self.stdout.write(message)
+        self.file.write(message)
+        self.file.flush()
+
+    def flush(self):
+        self.stdout.flush()
+        if not self.file.closed:
+            self.file.flush()
+
+
+def setup_comprehensive_logging(analysis_dir: str) -> str:
+    """Set up comprehensive logging to analysis directory (captures both logging and print).
+
+    Returns:
+        str: Path to the log file
+    """
+    log_file_path = os.path.join(analysis_dir, __CURR_FILE__ + ".log")
+
+    # Clear the log file at the start
+    with open(log_file_path, 'w', encoding='utf-8') as f:
+        pass  # Just clear it
+
+    # Add file handler to existing logger
+    file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(file_handler)
+
+    # Redirect stdout to capture print() statements
+    sys.stdout = TeeOutput(log_file_path, sys.stdout)
+
+    logger.info(f"Logs and prints will be saved to: {log_file_path}")
+    return log_file_path
+
+
+def cleanup_comprehensive_logging():
+    """Clean up logging by restoring original stdout and closing log file."""
+    if hasattr(sys.stdout, 'file') and hasattr(sys.stdout, 'stdout'):
+        original_stdout = sys.stdout.stdout
+        sys.stdout.file.close()
+        sys.stdout = original_stdout
 
 
 # ===========================================================================
@@ -116,6 +168,9 @@ class ProductionModelAnalyzer:
         # Analysis output directory
         self.analysis_dir = os.path.join(self.models_dir, "analysis")
         os.makedirs(self.analysis_dir, exist_ok=True)
+
+        # Set up comprehensive logging immediately so all subsequent logs are captured
+        setup_comprehensive_logging(self.analysis_dir)
 
         # Feature configuration from Config defaults (no __post_init__ side effects)
         self.feature_names: List[str] = [
@@ -274,7 +329,7 @@ class ProductionModelAnalyzer:
             self.y_test = self.y_all[self.held_out_indices]
             self.pid_test = self.pid_all[self.held_out_indices] if self.pid_all is not None else None
             logger.info(f"[LOAD] Held-out test set: {len(self.held_out_indices)} samples "
-                        f"(Pre-D={np.sum(self.y_test == 0)}, Healthy={np.sum(self.y_test == 1)})")
+                        f"(Pre-D={np.sum(self.y_test == 0)}, CGM-Healthy={np.sum(self.y_test == 1)})")
         else:
             logger.warning("[LOAD] held_out_test_indices.npy not found; using full dataset as test")
             self.held_out_indices = np.arange(len(self.X_all))
@@ -482,7 +537,7 @@ class ProductionModelAnalyzer:
                     f"({result['pct_high_conf_prediabetes']:.1f}%)")
         logger.info(f"[CONFIDENCE] Zone 2 (Uncertain): {result['n_uncertain']} samples "
                     f"({result['pct_uncertain']:.1f}%)")
-        logger.info(f"[CONFIDENCE] Zone 3 (Healthy): {result['n_high_conf_healthy']} samples "
+        logger.info(f"[CONFIDENCE] Zone 3 (CGM-Healthy): {result['n_high_conf_healthy']} samples "
                     f"({result['pct_high_conf_healthy']:.1f}%)")
         logger.info(f"[CONFIDENCE] Detection Rate={result['prediabetes_detection_rate']:.1f}% | "
                     f"FPR={result['false_positive_rate']:.1f}% | "
@@ -654,7 +709,7 @@ class ProductionModelAnalyzer:
             explainer = lime_tabular.LimeTabularExplainer(
                 X_flat[:3],
                 feature_names=[f"{feat}_{t}" for feat in self.feature_names for t in range(T)],
-                class_names=['Pre-diabetic', 'Healthy'],
+                class_names=['Pre-diabetic', 'CGM-Healthy'],
                 mode='classification',
             )
 
@@ -788,14 +843,14 @@ class ProductionModelAnalyzer:
         return results
 
     def analyze_by_study_group(self, n_repeats: int = 5) -> Dict[str, Any]:
-        """Analyze feature importance by true study group (Healthy vs Pre-diabetes).
+        """Analyze feature importance by true study group (CGM-Healthy vs Pre-diabetes).
 
         Each true-label group contains only one class, so standard AUC-based
         permutation importance is undefined.  Instead we use the **signed mean
         prediction shift**: how much the average predicted probability changes
         when a feature is shuffled.
 
-        For the Healthy group (y=1, model should predict HIGH):
+        For the CGM-Healthy group (y=1, model should predict HIGH):
             importance = baseline_mean - shuffled_mean
             Positive => feature was helping the model predict high (correct).
 
@@ -964,15 +1019,15 @@ class ProductionModelAnalyzer:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
         sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax1,
-                    xticklabels=['Pre-diabetes', 'Healthy'],
-                    yticklabels=['Pre-diabetes', 'Healthy'])
+                    xticklabels=['Pre-diabetes', 'CGM-Healthy'],
+                    yticklabels=['Pre-diabetes', 'CGM-Healthy'])
         ax1.set_title('Confusion Matrix (Raw Counts)')
         ax1.set_xlabel('Predicted Label')
         ax1.set_ylabel('True Label')
 
         sns.heatmap(cm_norm, annot=True, fmt='.2%', cmap='Blues', ax=ax2,
-                    xticklabels=['Pre-diabetes', 'Healthy'],
-                    yticklabels=['Pre-diabetes', 'Healthy'])
+                    xticklabels=['Pre-diabetes', 'CGM-Healthy'],
+                    yticklabels=['Pre-diabetes', 'CGM-Healthy'])
         ax2.set_title('Confusion Matrix (Normalized)')
         ax2.set_xlabel('Predicted Label')
         ax2.set_ylabel('True Label')
@@ -1078,7 +1133,7 @@ class ProductionModelAnalyzer:
         Produces a single grouped bar chart matching the research-paper style:
         - X-axis : feature names (rotated 45 deg)
         - Y-axis : Importance (AUC Drop) -- supports negative values
-        - Bars   : skyblue for Healthy, salmon for Pre-diabetic
+        - Bars   : skyblue for CGM-Healthy, salmon for Pre-diabetic
         - Saves  : feature_importance_by_study_group.png
         """
         save_path = os.path.join(self.analysis_dir, 'feature_importance_by_study_group.png')
@@ -1097,7 +1152,7 @@ class ProductionModelAnalyzer:
 
         # Map internal keys to display labels and colours matching the example
         display_config = {
-            'True_Healthy':      {'label': 'Predicted Healthy',      'color': 'skyblue'},
+            'True_Healthy':      {'label': 'Predicted CGM-Healthy',      'color': 'skyblue'},
             'True_PreDiabetes':  {'label': 'Predicted Pre-diabetic', 'color': 'salmon'},
         }
         fallback_colors = ['skyblue', 'salmon', '#2ecc71', '#f39c12']
@@ -1183,17 +1238,17 @@ class ProductionModelAnalyzer:
         # Plot 1: Predictions by hour
         scatter = axes[0, 0].scatter(hours, predictions, alpha=0.6, c=y_test, cmap='RdYlBu', s=30)
         axes[0, 0].set_xlabel('Reconstructed Hour of Day')
-        axes[0, 0].set_ylabel('Prediction Probability (Healthy)')
+        axes[0, 0].set_ylabel('Prediction Probability (CGM-Healthy)')
         axes[0, 0].set_title('Predictions by Time of Day')
         axes[0, 0].axhline(y=self.threshold, color='grey', linestyle='--', alpha=0.5,
                             label=f'Threshold={self.threshold:.3f}')
         axes[0, 0].legend()
-        plt.colorbar(scatter, ax=axes[0, 0], label='True Label (0=Pre-D, 1=Healthy)')
+        plt.colorbar(scatter, ax=axes[0, 0], label='True Label (0=Pre-D, 1=CGM-Healthy)')
 
         # Plot 2: Prediction distribution by class
         healthy_preds = predictions[y_test == 1]
         prediab_preds = predictions[y_test == 0]
-        axes[0, 1].hist(healthy_preds, bins=20, alpha=0.7, label='True Healthy', color='green')
+        axes[0, 1].hist(healthy_preds, bins=20, alpha=0.7, label='True CGM-Healthy', color='green')
         axes[0, 1].hist(prediab_preds, bins=20, alpha=0.7, label='Pre-diabetes', color='red')
         axes[0, 1].axvline(x=self.threshold, color='black', linestyle='--',
                            label=f'Threshold={self.threshold:.3f}')
@@ -1205,7 +1260,7 @@ class ProductionModelAnalyzer:
         # Plot 3: Confidence boxplot by class
         confidence = np.abs(predictions - self.threshold)
         axes[1, 0].boxplot([confidence[y_test == 0], confidence[y_test == 1]])
-        axes[1, 0].set_xticklabels(['Pre-diabetes', 'Healthy'])
+        axes[1, 0].set_xticklabels(['Pre-diabetes', 'CGM-Healthy'])
         axes[1, 0].set_ylabel('Distance from Threshold')
         axes[1, 0].set_title('Model Confidence by True Class')
 
@@ -1237,7 +1292,7 @@ class ProductionModelAnalyzer:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
 
         # Zone sample distribution
-        zones = ['Zone 1\n(Pre-D)', 'Zone 2\n(Uncertain)', 'Zone 3\n(Healthy)']
+        zones = ['Zone 1\n(Pre-D)', 'Zone 2\n(Uncertain)', 'Zone 3\n(CGM-Healthy)']
         counts = [
             confidence_results['n_high_conf_prediabetes'],
             confidence_results['n_uncertain'],
@@ -1290,7 +1345,7 @@ class ProductionModelAnalyzer:
         ax.hist(self.y_pred_proba[y_test == 0], bins=25, alpha=0.7,
                 color='red', label='Pre-diabetes (Class 0)', density=True)
         ax.hist(self.y_pred_proba[y_test == 1], bins=25, alpha=0.7,
-                color='green', label='Healthy (Class 1)', density=True)
+                color='green', label='CGM-Healthy (Class 1)', density=True)
 
         # Add zone boundaries
         ax.axvline(x=self.confidence_low_threshold, color='orange', linestyle='--',
@@ -1306,7 +1361,7 @@ class ProductionModelAnalyzer:
                    alpha=0.05, color='orange', label='_nolegend_')
         ax.axvspan(self.confidence_high_threshold, 1.0, alpha=0.05, color='green', label='_nolegend_')
 
-        ax.set_xlabel('Calibrated Probability (P(Healthy))')
+        ax.set_xlabel('Calibrated Probability (P(CGM-Healthy))')
         ax.set_ylabel('Density')
         ax.set_title('Prediction Distribution by True Class with Confidence Zones')
         ax.legend(loc='upper right')
@@ -1337,7 +1392,7 @@ class ProductionModelAnalyzer:
             ('MCC', f"{eval_results['mcc']:.4f}",
              'Matthews correlation coefficient'),
             ('Sensitivity (Recall)', f"{eval_results['sensitivity']:.4f}",
-             'Proportion of healthy correctly identified'),
+             'Proportion of CGM-Healthy correctly identified'),
             ('Specificity', f"{eval_results['specificity']:.4f}",
              'Proportion of pre-diabetic correctly identified'),
             ('PPV', f"{eval_results['ppv']:.4f}",
@@ -1357,7 +1412,7 @@ class ProductionModelAnalyzer:
                 ('Detection Rate', f"{confidence_results['prediabetes_detection_rate']:.1f}%",
                  'Pre-diabetes detection across all zones'),
                 ('False Positive Rate', f"{confidence_results['false_positive_rate']:.1f}%",
-                 'Healthy misclassified as pre-diabetic (Zone 1)'),
+                 'CGM-Healthy misclassified as pre-diabetic (Zone 1)'),
                 ('OGTT Burden', f"{confidence_results['ogtt_burden']:.1f}%",
                  'Patients needing confirmatory testing'),
             ])
@@ -1490,8 +1545,8 @@ class ProductionModelAnalyzer:
         group_results = self.analyze_by_prediction_confidence()
         all_results['group_analysis'] = group_results
 
-        # Step 6: Group analysis by true study group (Healthy vs Pre-Diabetes)
-        logger.info("\n[STEP 6/13] Feature importance by study group (Healthy vs Pre-Diabetes)...")
+        # Step 6: Group analysis by true study group (CGM-Healthy vs Pre-Diabetes)
+        logger.info("\n[STEP 6/13] Feature importance by study group (CGM-Healthy vs Pre-Diabetes)...")
         study_group_results = self.analyze_by_study_group()
         all_results['study_group_analysis'] = study_group_results
 
@@ -1595,7 +1650,7 @@ class ProductionModelAnalyzer:
         print(f"Model Version:  {self.model_folder_name}")
         print(f"Results Saved:  {self.analysis_dir}")
         print(f"Test Samples:   {len(self.X_test)} "
-              f"(Pre-D={np.sum(self.y_test == 0)}, Healthy={np.sum(self.y_test == 1)})")
+              f"(Pre-D={np.sum(self.y_test == 0)}, CGM-Healthy={np.sum(self.y_test == 1)})")
         print(f"Threshold:      {self.threshold:.4f}")
         print(f"Temperature:    {self.temperature_scaler.temperature if self.temperature_scaler else 1.0:.4f}")
 
@@ -1623,7 +1678,7 @@ class ProductionModelAnalyzer:
                   f"Precision={confidence_results['zone1_precision']:.1f}%")
             print(f"Zone 2 (Uncertain/OGTT):   {confidence_results['n_uncertain']} samples "
                   f"({confidence_results['pct_uncertain']:.1f}%)")
-            print(f"Zone 3 (High Conf Healthy): {confidence_results['n_high_conf_healthy']} samples "
+            print(f"Zone 3 (High Conf CGM-Healthy): {confidence_results['n_high_conf_healthy']} samples "
                   f"({confidence_results['pct_high_conf_healthy']:.1f}%) | "
                   f"Precision={confidence_results['zone3_precision']:.1f}%")
             print(f"Detection Rate:  {confidence_results['prediabetes_detection_rate']:.1f}%")
@@ -1666,6 +1721,9 @@ def main():
         print(f"\nAnalysis complete for: {analyzer.model_folder_name}")
         print(f"All results saved to: {analyzer.analysis_dir}")
 
+        # Clean up logging
+        cleanup_comprehensive_logging()
+
     except Exception as e:
         logger.error(f"Analysis failed: {e}", exc_info=True)
         print(f"\nAnalysis failed: {e}")
@@ -1678,6 +1736,9 @@ def main():
         print("4. Required packages: tensorflow, sklearn, matplotlib, seaborn")
         print("5. Optional packages: shap, lime (for full feature importance)")
         print(f"\nUsage: python \"{os.path.basename(__file__)}\" [model_folder_name]")
+
+        # Clean up logging even on error
+        cleanup_comprehensive_logging()
         sys.exit(1)
 
 

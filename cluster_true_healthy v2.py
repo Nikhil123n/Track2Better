@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 """
 Enhanced clustering script with individual plot saving functionality.
 This script processes wearable blood glucose data, computes various glycemic metrics, 
-clusters healthy participants, and identifies a 'true healthy' cluster with comprehensive visualizations.
+clusters healthy participants, and identifies a 'CGM-Healthy' cluster with comprehensive visualizations.
 """
 
 # =====================================================================
@@ -35,16 +35,47 @@ from paths import (
 )
 
 # Create logs directory and Ensure logs directory exists
-os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(PLOTS_OUTPUT_DIR, exist_ok=True)
+
+# Configure logging
+log_file_path = os.path.join(PLOTS_OUTPUT_DIR, __CURR_FILE__ + ".log")
+
+# Clear the log file at the start
+with open(log_file_path, 'w', encoding='utf-8') as f:
+    pass  # Just clear it
+
+# Set up logging with append mode (file already cleared above)
 logging.basicConfig(
     level=logging.INFO,  # Change to DEBUG to see more details
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(os.path.join(LOG_DIR, __CURR_FILE__ + ".log")),  # Save logs to file
+        logging.FileHandler(log_file_path, mode='a', encoding='utf-8'),  # Append to cleared log file
         logging.StreamHandler()  # Also print to console
     ]
 )
-logging.info(f"Logs will be saved to: {LOG_DIR}")
+
+# Redirect print statements to log file as well
+import sys
+class TeeOutput:
+    """Redirect stdout to both console and log file"""
+    def __init__(self, file_path, original_stdout):
+        self.file = open(file_path, 'a', encoding='utf-8')
+        self.stdout = original_stdout
+
+    def write(self, message):
+        self.stdout.write(message)
+        self.file.write(message)
+        self.file.flush()
+
+    def flush(self):
+        self.stdout.flush()
+        if not self.file.closed:
+            self.file.flush()
+
+# Redirect stdout to capture print() statements
+sys.stdout = TeeOutput(log_file_path, sys.stdout)
+
+logging.info(f"Logs and prints will be saved to: {log_file_path}")
 
 # Create plots directory
 os.makedirs(PLOTS_OUTPUT_DIR, exist_ok=True)
@@ -119,13 +150,13 @@ def save_plot_1_cluster_highlight(X_scaled, labels, n_clusters, true_healthy_clu
         color='red',
         s=100,
         alpha=0.8,
-        label=f'True Healthy (Cluster {true_healthy_cluster_id})',
+        label=f'CGM-Healthy (Cluster {true_healthy_cluster_id})',
         edgecolors='darkred',
         linewidth=2
     )
 
     plt.title(
-        f'True Healthy Cluster Highlighted\n'
+        f'CGM-Healthy Cluster Highlighted\n'
         f'(Cluster {true_healthy_cluster_id} in Red)',
         fontsize=16,
         fontweight='bold'
@@ -139,7 +170,7 @@ def save_plot_1_cluster_highlight(X_scaled, labels, n_clusters, true_healthy_clu
     n_true_healthy = np.sum(mask_th)
     total_healthy = len(labels)
     percentage = (n_true_healthy / total_healthy) * 100
-    textstr = f'True Healthy: {n_true_healthy}/{total_healthy}\n({percentage:.1f}%)'
+    textstr = f'CGM-Healthy: {n_true_healthy}/{total_healthy}\n({percentage:.1f}%)'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
     plt.text(
         0.02, 0.98,
@@ -1001,7 +1032,7 @@ def cluster_healthy_participants_enhanced(metrics_df):
     
     # Use elbow_k if available, else use silhouette
     n_clusters = elbow_k
-    print(f"\n✓ CHOSEN: K={n_clusters} (based on elbow method + clinical validity)")
+    print(f"\n CHOSEN: K={n_clusters} (based on elbow method + clinical validity)")
     
     # ========================================
     # STEP 3: FINAL CLUSTERING WITH CHOSEN K
@@ -1082,14 +1113,14 @@ def cluster_healthy_participants_enhanced(metrics_df):
         if label == true_healthy_cluster_id
     }
     
-    print(f"\n✓ Found {len(true_healthy_pids)} participants in True Healthy cluster")
+    print(f"\n Found {len(true_healthy_pids)} participants in CGM-Healthy cluster")
     
     # Update main dataframe
     metrics_df['study_group_cleaned'] = metrics_df['study_group']
     metrics_df.loc[
         metrics_df['participant_id'].isin(true_healthy_pids.keys()), 
         'study_group_cleaned'
-    ] = 'true_healthy'
+    ] = 'CGM-Healthy'
     metrics_df.loc[
         (metrics_df['study_group'] == 'healthy') & 
         (~metrics_df['participant_id'].isin(true_healthy_pids.keys())),
@@ -1269,7 +1300,7 @@ def save_summary_report(metrics_df, labels, healthy_df, true_healthy_cluster_id,
         f.write("2. Filtered healthy participants from AI-READI dataset\n")
         f.write("3. Applied systematic K-means clustering evaluation (K=2 to K=10)\n")
         f.write(f"4. Selected K={n_clusters} (see 00_k_selection_metrics.png)\n")
-        f.write(f"5. Identified Cluster {true_healthy_cluster_id} as 'True Healthy' based on clinical criteria\n")
+        f.write(f"5. Identified Cluster {true_healthy_cluster_id} as 'CGM-Healthy' based on clinical criteria\n")
         f.write("6. Clinical criteria: TIR > 90%, CV < 20%, Mean glucose 70-120 mg/dL\n")
         f.write("7. Validated using multiple visualization and statistical techniques\n")
         f.write("8. Updated study group labels for subsequent analysis\n\n")
@@ -1726,6 +1757,12 @@ def main():
     print(f"\nANALYSIS COMPLETE!")
     print(f"All outputs saved to: {PLOTS_OUTPUT_DIR}")
     print(f"{len(os.listdir(PLOTS_OUTPUT_DIR))} files generated")
+
+    # Close the log file properly by restoring original stdout first
+    if hasattr(sys.stdout, 'file') and hasattr(sys.stdout, 'stdout'):
+        original_stdout = sys.stdout.stdout
+        sys.stdout.file.close()
+        sys.stdout = original_stdout
 
 if __name__ == '__main__':
     main()

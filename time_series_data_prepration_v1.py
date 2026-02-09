@@ -263,7 +263,7 @@ def plot_glucose_dynamics(file_path, participant_id, save=True):
 
         # SAVE PLOT
         if save:
-            save_dir = os.path.join(LOG_DIR, "participant_plots")
+            save_dir = os.path.join(LOG_DIR, "time_series_plots")
             os.makedirs(save_dir, exist_ok=True)
 
             outfile = os.path.join(
@@ -275,7 +275,7 @@ def plot_glucose_dynamics(file_path, participant_id, save=True):
             logging.info(f"[SAVED] Glucose dynamics plot saved to: {outfile}")
 
         # SHOW PLOT
-        plt.show()
+        # plt.show()
         
     except Exception as e:
         logging.error(f"Error in plot_glucose_dynamics: {e}")
@@ -292,7 +292,7 @@ def plot_feature_distributions(file_path):
         exclude_cols = ['participant_id', 'time_index', 'date', 'time', 'study_group']
         all_features = [col for col in df.columns if col not in exclude_cols and pd.api.types.is_numeric_dtype(df[col])]
 
-        save_dir = os.path.join(LOG_DIR, "participant_plots")
+        save_dir = os.path.join(LOG_DIR, "time_series_plots")
         os.makedirs(save_dir, exist_ok=True)
 
         # Plot each feature individually by study group
@@ -308,7 +308,7 @@ def plot_feature_distributions(file_path):
             plt.savefig(out_path, dpi=300, bbox_inches="tight")
             logging.info(f"[SAVED] Feature distribution plot saved: {out_path}")
             
-            plt.show()
+            # plt.show()
             
     except Exception as e:
         logging.error(f"Error in plot_feature_distributions: {e}")

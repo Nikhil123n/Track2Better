@@ -101,7 +101,7 @@ class Config:
     # Confidence-based prediction (3-tier classification)
     use_confidence_based_prediction: bool = False  # Turn on/off confidence-based rules
     confidence_high_threshold: float = 0.65        # prob >= 0.65: High confidence Pre-Diabetes
-    confidence_low_threshold: float = 0.35         # prob < 0.35: High confidence Healthy
+    confidence_low_threshold: float = 0.35         # prob < 0.35: High confidence CGM-Healthy
                                                     # 0.35 <= prob < 0.65: Uncertain (OGTT needed)
 
     # Held-out test set (final generalization test)
@@ -245,9 +245,9 @@ class DataLoader:
 
     def prepare_binary_classification_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """Filter and relabel data for binary classification.
-            Keeps only the `true_healthy` and `pre_diabetes_lifestyle` groups and
+            Keeps only the `CGM-Healthy` and `pre_diabetes_lifestyle` groups and
             constructs a `label_binary` column where:
-            - 1 = true_healthy
+            - 1 = CGM-Healthy
             - 0 = pre_diabetes_lifestyle
             Also runs DataFrame and feature validations before returning.
         """
@@ -255,14 +255,14 @@ class DataLoader:
         self.validator.validate_dataframe(df, required, 'Input DataFrame')
         df = self.validator.validate_features(df, self.config.selected_features)
 
-        targets = ['true_healthy', 'pre_diabetes_lifestyle']
+        targets = ['CGM-Healthy', 'pre_diabetes_lifestyle']
         dff = df[df['study_group'].isin(targets)].copy()
         dff.reset_index(drop=True, inplace=True)
         logger.info(f"[DATA] Filtered for binary classification: {dff.shape[0]} rows")
         logger.info(f"[DATA] Class distribution: {dff['study_group'].value_counts().to_dict()}")
 
-        # Binary target: 1 if true_healthy, else 0
-        dff['label_binary'] = (dff['study_group'] == 'true_healthy').astype(int)
+        # Binary target: 1 if CGM-Healthy, else 0
+        dff['label_binary'] = (dff['study_group'] == 'CGM-Healthy').astype(int)
         return dff
 
     def create_lstm_sequences(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:

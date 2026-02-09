@@ -182,8 +182,8 @@ class LSTMPipeline:
             f"Overlap={len(train_val_pids & test_pids)}"
         )
 
-        logger.info(f"[HELD-OUT] Train+Val distribution: [Pre-D={np.sum(y_train_val==0)}, Healthy={np.sum(y_train_val==1)}]")
-        logger.info(f"[HELD-OUT] Test distribution: [Pre-D={np.sum(y_test==0)}, Healthy={np.sum(y_test==1)}]")
+        logger.info(f"[HELD-OUT] Train+Val distribution: [Pre-D={np.sum(y_train_val==0)}, CGM-Healthy={np.sum(y_train_val==1)}]")
+        logger.info(f"[HELD-OUT] Test distribution: [Pre-D={np.sum(y_test==0)}, CGM-Healthy={np.sum(y_test==1)}]")
         logger.info(f"[HELD-OUT] No participant leakage confirmed (disjoint sets)")
 
         # Save held-out test indices
@@ -253,8 +253,8 @@ class LSTMPipeline:
         logger.info(f"[HELD-OUT] Accuracy: {report['accuracy']:.4f}")
         logger.info(f"[HELD-OUT] Pre-Diabetes Precision: {report.get('0', {}).get('precision', 0):.4f}")
         logger.info(f"[HELD-OUT] Pre-Diabetes Recall: {report.get('0', {}).get('recall', 0):.4f}")
-        logger.info(f"[HELD-OUT] Healthy Precision: {report.get('1', {}).get('precision', 0):.4f}")
-        logger.info(f"[HELD-OUT] Healthy Recall: {report.get('1', {}).get('recall', 0):.4f}")
+        logger.info(f"[HELD-OUT] CGM-Healthy Precision: {report.get('1', {}).get('precision', 0):.4f}")
+        logger.info(f"[HELD-OUT] CGM-Healthy Recall: {report.get('1', {}).get('recall', 0):.4f}")
 
         # Confidence-based evaluation (if enabled)
         confidence_metrics = None
@@ -266,7 +266,7 @@ class LSTMPipeline:
             logger.info(f"[HELD-OUT] Pre-Diabetes Detection Rate: {confidence_metrics['prediabetes_detection_rate']:.1f}%")
             logger.info(f"[HELD-OUT] False Positive Rate: {confidence_metrics['false_positive_rate']:.1f}%")
             logger.info(f"[HELD-OUT] Zone 1 (High Conf Pre-D) Precision: {confidence_metrics['zone1_precision']:.1f}%")
-            logger.info(f"[HELD-OUT] Zone 3 (High Conf Healthy) Specificity: {confidence_metrics['zone3_specificity']:.1f}%")
+            logger.info(f"[HELD-OUT] Zone 3 (High Conf CGM-Healthy) Specificity: {confidence_metrics['zone3_specificity']:.1f}%")
             logger.info(f"[HELD-OUT] OGTT Burden: {confidence_metrics['ogtt_burden']:.1f}%")
             logger.info(f"[HELD-OUT] =======================================================")
 
@@ -296,7 +296,7 @@ class LSTMPipeline:
         print("\n" + "="*60)
         print("HELD-OUT TEST SET RESULTS (TRUE GENERALIZATION)")
         print("="*60)
-        print(f"Samples:     {results['n_samples']} (Pre-D={results['n_true_prediabetes']}, Healthy={results['n_true_healthy']})")
+        print(f"Samples:     {results['n_samples']} (Pre-D={results['n_true_prediabetes']}, CGM-Healthy={results['n_true_healthy']})")
         print(f"ROC-AUC:     {results['roc_auc']:.4f}")
         print(f"PR-AUC:      {results['pr_auc']:.4f}")
         print(f"Accuracy:    {results['classification_report']['accuracy']:.4f}")
@@ -308,7 +308,7 @@ class LSTMPipeline:
         print(f"  Recall:    {report.get('0', {}).get('recall', 0):.4f}")
         print(f"  F1-Score:  {report.get('0', {}).get('f1-score', 0):.4f}")
 
-        print(f"\nHealthy (Class 1):")
+        print(f"\nCGM-Healthy (Class 1):")
         print(f"  Precision: {report.get('1', {}).get('precision', 0):.4f}")
         print(f"  Recall:    {report.get('1', {}).get('recall', 0):.4f}")
         print(f"  F1-Score:  {report.get('1', {}).get('f1-score', 0):.4f}")
@@ -478,7 +478,7 @@ class LSTMPipeline:
             # Strategy: Create zones that span ±0.15 around global threshold for uncertain zone
             # Zone 1 (High Conf Pre-D): prob >= global_thr + margin_high
             # Zone 2 (Uncertain): global_thr - margin_low <= prob < global_thr + margin_high
-            # Zone 3 (High Conf Healthy): prob < global_thr - margin_low
+            # Zone 3 (High Conf CGM-Healthy): prob < global_thr - margin_low
 
             margin_low = 0.08   # Distance below global threshold for uncertain zone
             margin_high = 0.22  # Distance above global threshold for uncertain zone
@@ -495,10 +495,10 @@ class LSTMPipeline:
             logger.info(f"[CV] Global threshold: {global_threshold:.4f}")
             logger.info(f"[CV] Original confidence thresholds: Low={original_low:.4f}, High={original_high:.4f}")
             logger.info(f"[CV] Dynamic confidence thresholds: Low={dynamic_low:.4f}, High={dynamic_high:.4f}")
-            logger.info(f"[CV] NOTE: Model predicts prob of Class 1 (Healthy). Higher prob = healthier.")
+            logger.info(f"[CV] NOTE: Model predicts prob of Class 1 (CGM-Healthy). Higher prob = healthier.")
             logger.info(f"[CV] Zone 1 (High Conf Pre-Diabetes): prob < {dynamic_low:.4f}")
             logger.info(f"[CV] Zone 2 (Uncertain - needs OGTT): {dynamic_low:.4f} <= prob < {dynamic_high:.4f} (width: {dynamic_high-dynamic_low:.4f})")
-            logger.info(f"[CV] Zone 3 (High Conf Healthy): prob >= {dynamic_high:.4f}")
+            logger.info(f"[CV] Zone 3 (High Conf CGM-Healthy): prob >= {dynamic_high:.4f}")
             logger.info("[CV] ===================================================================\n")
         # ======================================================================
 
@@ -536,7 +536,7 @@ class LSTMPipeline:
                 logger.info(f"[CV] Fold {fold_idx} confidence (dynamic thresholds):")
                 logger.info(f"     Zone 1 (High Conf Pre-D): {conf_metrics['n_high_conf_prediabetes']} samples ({conf_metrics['pct_high_conf_prediabetes']:.1f}%)")
                 logger.info(f"     Zone 2 (Uncertain/OGTT): {conf_metrics['n_uncertain']} samples ({conf_metrics['pct_uncertain']:.1f}%)")
-                logger.info(f"     Zone 3 (High Conf Healthy): {conf_metrics['n_high_conf_healthy']} samples ({conf_metrics['pct_high_conf_healthy']:.1f}%)")
+                logger.info(f"     Zone 3 (High Conf CGM-Healthy): {conf_metrics['n_high_conf_healthy']} samples ({conf_metrics['pct_high_conf_healthy']:.1f}%)")
 
         # Aggregate confidence metrics (if enabled)
         confidence_summary = None
@@ -548,7 +548,7 @@ class LSTMPipeline:
             logger.info(f"[CV] Pre-Diabetes Detection Rate: {confidence_summary['prediabetes_detection_rate_mean']:.1f}% ± {confidence_summary['prediabetes_detection_rate_std']:.1f}%")
             logger.info(f"[CV] False Positive Rate: {confidence_summary['false_positive_rate_mean']:.1f}% ± {confidence_summary['false_positive_rate_std']:.1f}%")
             logger.info(f"[CV] Zone 1 (High Conf Pre-D) Precision: {confidence_summary['zone1_precision_mean']:.1f}%")
-            logger.info(f"[CV] Zone 3 (High Conf Healthy) Specificity: {confidence_summary['zone3_specificity_mean']:.1f}%")
+            logger.info(f"[CV] Zone 3 (High Conf CGM-Healthy) Specificity: {confidence_summary['zone3_specificity_mean']:.1f}%")
             logger.info("[CV] ============================================================")
 
         # Aggregate
@@ -700,7 +700,7 @@ class LSTMPipeline:
                     "computed_from_global_threshold": float(global_threshold),
                     "margin_low": 0.08,
                     "margin_high": 0.22,
-                    "note": "Model predicts probability of Class 1 (Healthy). Higher prob = healthier.",
+                    "note": "Model predicts probability of Class 1 (CGM-Healthy). Higher prob = healthier.",
                     "zone_definitions": {
                         "zone1_high_conf_prediabetes": f"prob < {self.config.confidence_low_threshold:.4f}",
                         "zone2_uncertain_needs_ogtt": f"{self.config.confidence_low_threshold:.4f} <= prob < {self.config.confidence_high_threshold:.4f}",
@@ -711,7 +711,7 @@ class LSTMPipeline:
             logger.info(f"[FINAL MODEL] Saved confidence thresholds to: {conf_path}")
             logger.info(f"[FINAL MODEL] Zone 1 (High Conf Pre-D): prob < {self.config.confidence_low_threshold:.4f}")
             logger.info(f"[FINAL MODEL] Zone 2 (Uncertain/OGTT): {self.config.confidence_low_threshold:.4f} <= prob < {self.config.confidence_high_threshold:.4f}")
-            logger.info(f"[FINAL MODEL] Zone 3 (High Conf Healthy): prob >= {self.config.confidence_high_threshold:.4f}")
+            logger.info(f"[FINAL MODEL] Zone 3 (High Conf CGM-Healthy): prob >= {self.config.confidence_high_threshold:.4f}")
 
         # Save feature scaler
         if final_trainer.feature_scaler_mean is not None and final_trainer.feature_scaler_scale is not None:
@@ -787,7 +787,7 @@ class LSTMPipeline:
 
 ## Per-Class Performance (from CV with global threshold)
 - **Pre-Diabetes (Class 0)**: Precision {avg_class_0_precision:.1f}%, Recall {avg_class_0_recall:.1f}%
-- **Healthy (Class 1)**: Precision {avg_class_1_precision:.1f}%, Recall {avg_class_1_recall:.1f}%
+- **CGM-Healthy (Class 1)**: Precision {avg_class_1_precision:.1f}%, Recall {avg_class_1_recall:.1f}%
 
 ## Files
 - `best_model.keras` - Trained Keras model
@@ -863,7 +863,7 @@ def predict_patient(cgm_data):
         }}
     else:
         return {{
-            'prediction': 'Healthy',
+            'prediction': 'CGM-Healthy',
             'confidence': 'High',
             'action': 'Regular screening cycle (1-2 years)',
             'probability': calibrated_prob
@@ -875,8 +875,8 @@ def predict_patient(cgm_data):
 Set up alerts for these metrics:
 - Pre-Diabetes Recall: ≥ 0.75
 - Pre-Diabetes Precision: ≥ 0.90
-- Healthy Recall: ≥ 0.85
-- Healthy Precision: ≥ 0.70
+- CGM-Healthy Recall: ≥ 0.85
+- CGM-Healthy Precision: ≥ 0.70
 - ECE (calibration): < 0.15
 
 Check for distribution shift weekly by monitoring input feature statistics.
@@ -886,14 +886,14 @@ Retrain quarterly with new data.
 
 This model uses **dynamically computed confidence thresholds** that adapt to the model's actual probability distribution. Unlike static thresholds, these are centered on the global decision threshold determined during cross-validation.
 
-**IMPORTANT**: The model predicts probability of Class 1 (Healthy). Higher probabilities indicate healthier patients.
+**IMPORTANT**: The model predicts probability of Class 1 (CGM-Healthy). Higher probabilities indicate healthier patients.
 
 **How it works:**
 - The global threshold (e.g., {global_threshold:.4f}) is computed from out-of-fold validation predictions using Youden's J statistic
 - Confidence zones are automatically positioned around this threshold:
-  - **Zone 1 (High Conf Pre-Diabetes)**: prob < global_thr - 0.08 (LOW prob of healthy = high risk)
+  - **Zone 1 (High Conf Pre-Diabetes)**: prob < global_thr - 0.08 (LOW prob of CGM-Healthy = high risk)
   - **Zone 2 (Uncertain - needs OGTT)**: global_thr - 0.08 ≤ prob < global_thr + 0.22 (middle range)
-  - **Zone 3 (High Conf Healthy)**: prob ≥ global_thr + 0.22 (HIGH prob of healthy = low risk)
+  - **Zone 3 (High Conf CGM-Healthy)**: prob ≥ global_thr + 0.22 (HIGH prob of CGM-Healthy = low risk)
 
 **Why dynamic thresholds?**
 - Prevents misalignment when global threshold shifts across different model runs
@@ -902,7 +902,7 @@ This model uses **dynamically computed confidence thresholds** that adapt to the
 
 **Expected performance** (from CV with dynamic thresholds):
 - Zone 1 Precision: ≥90% (high confidence pre-diabetes predictions are reliable)
-- Zone 3 Specificity: ≥85% (high confidence healthy predictions are reliable)
+- Zone 3 Specificity: ≥85% (high confidence CGM-Healthy predictions are reliable)
 - OGTT Burden: 30-40% (percentage of cases needing secondary screening)
 - Overall Pre-Diabetes Detection: ≥85% (across all zones)
 """)

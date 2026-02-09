@@ -87,7 +87,7 @@ class ModelCardGenerator:
             ],
             "target_classes": {
                 "0": "pre_diabetes_lifestyle",
-                "1": "true_healthy"
+                "1": "CGM-Healthy"
             }
         }
 
