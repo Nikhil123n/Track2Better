@@ -24,7 +24,7 @@ SUMMARY_PATH = os.path.join(CLEANED_DATA_PATH, "summarized_metrics_all_participa
 
 # Output / derived directories
 AUGMENTED_OUTPUT_DIR = os.path.join(CLEANED_DATA_PATH, "augmented_batches")
-PLOTS_OUTPUT_DIR = os.path.join(CLEANED_DATA_PATH, "cluster_true_healthy")
+PLOTS_OUTPUT_DIR = os.path.join(LOG_DIR, "cluster_healthy")
 
 # Aliases for scripts that used different constant names
 OUTPUT_PATH_VALID = CLEANED_DATA_PATH
