@@ -1028,7 +1028,7 @@ class ProductionModelAnalyzer:
         sns.heatmap(cm_norm, annot=True, fmt='.2%', cmap='Blues', ax=ax2,
                     xticklabels=['Pre-diabetes', 'CGM-Healthy'],
                     yticklabels=['Pre-diabetes', 'CGM-Healthy'])
-        ax2.set_title('Confusion Matrix (Normalized)')
+        ax2.set_title('Confusion Matrix (Row-Normalized)')
         ax2.set_xlabel('Predicted Label')
         ax2.set_ylabel('True Label')
 
