@@ -91,22 +91,44 @@ class EnhancedFeatureAnalyzer:
             logger.info(f"Auto-detected latest model folder: {self.model_folder_name}")
         
         self.model = None
-        self.threshold = 0.5  # will be overwritten by config
+        self.threshold = 0.5  # will be overwritten by loading methods
+        self.temperature = 1.0  # Temperature scaling parameter
+        self.use_temperature_scaling = False
 
-        # default (only used if config not found)
+        # Pipeline default features (9 features)
         default_feats = [
-            'glucose_accel','glucose_change_rate','cos_hour',
-            'blood_glucose_value','glucose_rollmean_1h','glucose_diff',
-            'hour','is_meal_time','is_night'
+            'glucose_accel', 'cos_hour', 'blood_glucose_value',
+            'glucose_rollmean_1h', 'glucose_rollstd_1h',
+            'glucose_diff', 'sin_hour', 'is_meal_time', 'is_night'
         ]
 
-        cfg_path = os.path.join(self.models_dir, "model_config.json")
-        if os.path.exists(cfg_path):
-            cfg = json.load(open(cfg_path, "r"))
-            self.feature_names = cfg.get("features", default_feats)
-            self.threshold = float(cfg.get("training_params", {}).get("val_threshold", 0.5))
-        else:
-            self.feature_names = default_feats
+        # Try to load features from multiple sources
+        self.feature_names = None
+        self.binary_features = {'is_meal_time', 'is_night'}  # Keep as fallback
+
+        # Source 1: root model_config.json (legacy, may have features)
+        root_cfg_path = os.path.join(self.models_dir, "model_config.json")
+        if os.path.exists(root_cfg_path):
+            cfg = json.load(open(root_cfg_path, "r"))
+            self.feature_names = cfg.get("features", None)
+            logger.info(f"Loaded features from model_config.json")
+
+        # Source 2: Infer from X_lstm.npy shape if not found
+        if self.feature_names is None:
+            X_path = os.path.join(self.models_dir, "X_lstm.npy")
+            if os.path.exists(X_path):
+                X = np.load(X_path)
+                n_features = X.shape[2]
+                # Use pipeline defaults if 9 features
+                if n_features == 9:
+                    self.feature_names = default_feats
+                    logger.info("Using pipeline default features (9 features detected)")
+                else:
+                    self.feature_names = [f"feature_{i}" for i in range(n_features)]
+                    logger.warning(f"Could not infer feature names, using generic names for {n_features} features")
+            else:
+                self.feature_names = default_feats
+                logger.warning("X_lstm.npy not found, using fallback defaults")
         
         # Verify required files exist
         self._verify_model_files()
@@ -135,58 +157,113 @@ class EnhancedFeatureAnalyzer:
             return None
     
     def _verify_model_files(self):
-        """Verify that required model files exist."""
+        """Verify that required model files exist in production_model/ structure."""
         required_files = [
-            "best_model.keras",
-            "X_lstm.npy",
-            "y_lstm_binary.npy",
-            "idx_test.npy"          # exact test split from training
+            ("production_model", "best_model.keras"),
+            ("production_model", "global_threshold.json"),
+            ("production_model", "temperature_scaler.json"),
+            ("production_model", "feature_scaler.npz"),
+            ("held_out_test", "held_out_test_indices.npy"),
+            ("", "X_lstm.npy"),
+            ("", "y_lstm_binary.npy")
         ]
-        
+
         missing_files = []
-        for file_name in required_files:
-            file_path = os.path.join(self.models_dir, file_name)
+        for subdir, file_name in required_files:
+            if subdir:
+                file_path = os.path.join(self.models_dir, subdir, file_name)
+                display_path = f"{subdir}/{file_name}"
+            else:
+                file_path = os.path.join(self.models_dir, file_name)
+                display_path = file_name
+
             if not os.path.exists(file_path):
-                missing_files.append(file_name)
-        
+                missing_files.append(display_path)
+
         if missing_files:
             raise FileNotFoundError(f"Missing required files in {self.models_dir}: {missing_files}")
-        
+
         logger.info(f"All required model files found in {self.model_folder_name}")
         
     def load_model_and_data(self):
-        """Load model and data with correct splits."""
-        # Load model (updated to use best_model.keras from ModelCheckpoint)
-        model_path = os.path.join(self.models_dir, "best_model.keras")
+        """Load model and data from production_model/ and held_out_test/."""
+        # Load model from production_model/
+        model_path = os.path.join(self.models_dir, "production_model", "best_model.keras")
         self.model = load_model(model_path)
-        
-        # Load data and recreate exact split
+        logger.info(f"Model loaded from production_model/best_model.keras")
+
+        # Load threshold from production_model/
+        threshold_path = os.path.join(self.models_dir, "production_model", "global_threshold.json")
+        if os.path.exists(threshold_path):
+            with open(threshold_path, 'r') as f:
+                threshold_data = json.load(f)
+            self.threshold = float(threshold_data.get("global_threshold", 0.5))
+            logger.info(f"Global threshold loaded: {self.threshold:.4f}")
+        else:
+            logger.warning("global_threshold.json not found, using default 0.5")
+
+        # Load temperature scaler
+        self.load_temperature_scaler()
+
+        # Load full dataset
         X_all = np.load(os.path.join(self.models_dir, "X_lstm.npy"))
         y_all = np.load(os.path.join(self.models_dir, "y_lstm_binary.npy"))
-        idx_test = np.load(os.path.join(self.models_dir, "idx_test.npy"))
-        
+
+        # Load held-out test indices (NOT internal CV test)
+        idx_test = np.load(os.path.join(self.models_dir, "held_out_test", "held_out_test_indices.npy"))
+        logger.info(f"Using held-out test set (never seen during training)")
+
         X_test, y_test = X_all[idx_test], y_all[idx_test]
         self.timesteps = X_test.shape[1]  # used by SHAP/LIME flattening
 
-        # apply train-only standardization to continuous features (if available)
-        scaler_path = os.path.join(self.models_dir, "feature_scaler.npz")
+        # Apply train-only standardization to continuous features
+        scaler_path = os.path.join(self.models_dir, "production_model", "feature_scaler.npz")
         if os.path.exists(scaler_path):
             pack = np.load(scaler_path, allow_pickle=True)
-            mu, sigma = pack["mean"], pack["std"]
-            cont_features = set([str(x) for x in pack["cont_features"].tolist()])
-            binary = {'is_meal_time','is_night'}
+            mu = pack["mean"]
+            sigma = pack["scale"]  # FIX: Use 'scale' not 'std'
+
+            # Continuous features are all except binary features
             cont_idx = [i for i, n in enumerate(self.feature_names)
-                        if (n in cont_features) and (n not in binary)]
+                        if n not in self.binary_features]
+
             X_test = X_test.copy()
             X_test[:, :, cont_idx] = (X_test[:, :, cont_idx] - mu) / sigma
-            logger.info("Applied saved train-only standardization to continuous features")
+            logger.info("Applied feature scaling from production_model/feature_scaler.npz")
         else:
-            logger.warning(" feature_scaler.npz not found — proceeding without standardization")
+            logger.warning("feature_scaler.npz not found — proceeding without standardization")
 
-        logger.info(f" Model and data loaded from: {self.model_folder_name}")
-        logger.info(f"Test set shape: {X_test.shape}")
+        logger.info(f"Model and data loaded from: {self.model_folder_name}")
+        logger.info(f"Test set shape: {X_test.shape} (n={len(X_test)} samples)")
         return X_test, y_test
-    
+
+    def load_temperature_scaler(self):
+        """Load temperature scaling parameter from production_model/."""
+        temp_path = os.path.join(self.models_dir, "production_model", "temperature_scaler.json")
+        if os.path.exists(temp_path):
+            with open(temp_path, 'r') as f:
+                temp_data = json.load(f)
+            self.temperature = float(temp_data.get("temperature", 1.0))
+            self.use_temperature_scaling = True
+            logger.info(f"Loaded temperature scaling: T={self.temperature:.4f}")
+        else:
+            self.temperature = 1.0
+            self.use_temperature_scaling = False
+            logger.warning("temperature_scaler.json not found, using raw predictions")
+
+    def apply_temperature_scaling(self, y_prob):
+        """Apply temperature scaling to probabilities."""
+        if not self.use_temperature_scaling or self.temperature == 1.0:
+            return y_prob
+
+        # Temperature scaling: p_calibrated = sigmoid(logit / T)
+        # Convert probabilities to logits, scale, then back to probabilities
+        y_prob = np.clip(y_prob, 1e-7, 1 - 1e-7)  # Avoid log(0)
+        logits = np.log(y_prob / (1 - y_prob))
+        calibrated_logits = logits / self.temperature
+        y_prob_calibrated = 1 / (1 + np.exp(-calibrated_logits))
+        return y_prob_calibrated
+
     def comprehensive_evaluation(self, X_test, y_test):
         """Generate comprehensive research metrics."""
         try:
@@ -194,6 +271,7 @@ class EnhancedFeatureAnalyzer:
             
             # Get predictions
             y_pred_proba = self.model.predict(X_test, verbose=0)
+            y_pred_proba = self.apply_temperature_scaling(y_pred_proba)  # Apply calibration
             y_pred = (y_pred_proba >= self.threshold).astype(int).flatten()
             y_pred_proba = y_pred_proba.flatten()
             y_test = y_test.flatten()
@@ -259,14 +337,16 @@ class EnhancedFeatureAnalyzer:
         
         # Baseline performance
         baseline_preds = self.model.predict(X_subset, verbose=0).flatten()
+        baseline_preds = self.apply_temperature_scaling(baseline_preds)  # Apply calibration
         baseline_auc = auc(*roc_curve(y_subset, baseline_preds)[:2])
-        
+
         importance_scores = []
         for i, feature_name in enumerate(self.feature_names):
             X_corrupted = X_subset.copy()
             np.random.shuffle(X_corrupted[:, :, i])
-            
+
             corrupted_preds = self.model.predict(X_corrupted, verbose=0).flatten()
+            corrupted_preds = self.apply_temperature_scaling(corrupted_preds)  # Apply calibration
             corrupted_auc = auc(*roc_curve(y_subset, corrupted_preds)[:2])
             
             importance = baseline_auc - corrupted_auc
@@ -302,19 +382,21 @@ class EnhancedFeatureAnalyzer:
         logger.info("Computing variance-based importance...")
         
         X_subset = X_test[:n_samples]
-        
+
         # Get baseline predictions
         baseline_preds = self.model.predict(X_subset, verbose=0).flatten()
+        baseline_preds = self.apply_temperature_scaling(baseline_preds)  # Apply calibration
         baseline_var = np.var(baseline_preds)
-        
+
         importance_scores = []
         for i, feature_name in enumerate(self.feature_names):
             # Add noise to feature
             X_noisy = X_subset.copy()
             noise = np.random.normal(0, np.std(X_subset[:, :, i]) * 0.1, X_subset[:, :, i].shape)
             X_noisy[:, :, i] += noise
-            
+
             noisy_preds = self.model.predict(X_noisy, verbose=0).flatten()
+            noisy_preds = self.apply_temperature_scaling(noisy_preds)  # Apply calibration
             noisy_var = np.var(noisy_preds)
             
             # Importance as change in prediction variance
@@ -343,7 +425,9 @@ class EnhancedFeatureAnalyzer:
                 if len(X.shape) == 2:
                     # Reshape flattened input back to (samples, timesteps, features)
                     X = X.reshape(-1, T, len(self.feature_names))
-                return self.model.predict(X, verbose=0).flatten()
+                preds = self.model.predict(X, verbose=0).flatten()
+                preds = self.apply_temperature_scaling(preds)  # Apply calibration
+                return preds
             
             # Use a smaller background dataset
             background = X_subset[:3].reshape(3, -1)  # Flatten for KernelExplainer
@@ -393,8 +477,9 @@ class EnhancedFeatureAnalyzer:
             
             # Model wrapper
             def model_predict_proba(X):
-                X_reshaped = X.reshape(-1, 2138, len(self.feature_names))
+                X_reshaped = X.reshape(-1, T, len(self.feature_names))  # Use dynamic T
                 preds = self.model.predict(X_reshaped, verbose=0)
+                preds = self.apply_temperature_scaling(preds)  # Apply calibration
                 return np.column_stack([1-preds, preds])  # LIME expects probabilities for both classes
             
             # Get explanations for a few samples
@@ -435,9 +520,10 @@ class EnhancedFeatureAnalyzer:
         """Analyze temporal patterns in predictions."""
         try:
             logger.info(" Analyzing temporal patterns...")
-            
+
             predictions = self.model.predict(X_test, verbose=0).flatten()
-            
+            predictions = self.apply_temperature_scaling(predictions)  # Apply calibration
+
             # Find hour feature
             hour_feature_idx = None
             for i, feature in enumerate(self.feature_names):
@@ -490,7 +576,7 @@ class EnhancedFeatureAnalyzer:
                 save_path = os.path.join(self.models_dir, 'temporal_analysis.png')
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 logger.info(f"Temporal analysis saved to: {save_path}")
-                plt.show()
+                # plt.show()  # Non-interactive mode
                 
             logger.info("Temporal analysis completed")
             
@@ -504,10 +590,11 @@ class EnhancedFeatureAnalyzer:
             return self._analyze_by_study_group_permutation(X_test, y_test)
         
         logger.info("Analyzing by study group using SHAP...")
-        
+
         # Get predictions for all test samples
         predictions = self.model.predict(X_test, verbose=0).flatten()
-        
+        predictions = self.apply_temperature_scaling(predictions)  # Apply calibration
+
         # Use quartile-based grouping for more stable groups
         prediction_quartiles = np.percentile(predictions, [25, 75])
         
@@ -537,12 +624,12 @@ class EnhancedFeatureAnalyzer:
         
         return results
 
-    def _compute_shap_for_group(self, X_group, group_name, n_samples=5):
+    def _compute_shap_for_group(self, X_group, group_name, n_samples=10):
         """Compute SHAP importance for a specific group."""
         try:
-            logger.info(f" Computing SHAP importance for {group_name}...")
-            
-            # Use small subset for SHAP (computationally expensive)
+            logger.info(f"Computing SHAP importance for {group_name}...")
+
+            # Use moderate subset for SHAP (balanced between accuracy and stability)
             sample_size = min(n_samples, len(X_group))
             if len(X_group) > sample_size:
                 np.random.seed(42)  # Fixed seed for reproducibility
@@ -550,7 +637,7 @@ class EnhancedFeatureAnalyzer:
                 X_subset = X_group[indices]
             else:
                 X_subset = X_group
-            
+
             # Model wrapper for SHAP
             def model_predict(X):
                 # Ensure correct shape for LSTM
@@ -559,30 +646,65 @@ class EnhancedFeatureAnalyzer:
                     expected_features = len(self.feature_names)
                     expected_timesteps = X.shape[1] // expected_features
                     X = X.reshape(-1, expected_timesteps, expected_features)
-                return self.model.predict(X, verbose=0).flatten()
-            
-            # Use smaller background dataset
-            background_size = min(2, len(X_subset))
+                preds = self.model.predict(X, verbose=0).flatten()
+                # Apply temperature scaling for consistency
+                preds = self.apply_temperature_scaling(preds)
+                return preds
+
+            # Use minimal background dataset for stability (3 samples is a good balance)
+            background_size = min(3, len(X_subset))
             background = X_subset[:background_size].reshape(background_size, -1)
-            
+
             # Create KernelExplainer
             explainer = shap.KernelExplainer(model_predict, background)
-            
-            # Get SHAP values for small subset
+
+            # Use moderate nsamples for stability (100 can cause numerical issues)
             test_sample = X_subset[:sample_size].reshape(sample_size, -1)
             shap_values = explainer.shap_values(test_sample, nsamples=50)
             
             # Process SHAP values
             if isinstance(shap_values, list):
                 shap_values = shap_values[0]  # For binary classification
-            
+
+            # Check for NaN or Inf values
+            if np.any(np.isnan(shap_values)) or np.any(np.isinf(shap_values)):
+                logger.error(f"SHAP values contain NaN or Inf for {group_name}")
+                raise ValueError("Numerical instability detected in SHAP values")
+
             # Reshape back and average across time steps and samples
             expected_timesteps = X_subset.shape[1]
             expected_features = len(self.feature_names)
             shap_reshaped = shap_values.reshape(-1, expected_timesteps, expected_features)
             feature_importance = np.abs(shap_reshaped).mean(axis=0).mean(axis=0)
-            
-            logger.info(f" SHAP analysis completed for {group_name}")
+
+            # Validate SHAP values for numerical issues
+            max_importance = np.max(feature_importance)
+            min_importance = np.min(feature_importance)
+
+            # Check for extreme outliers (values > 1000x the median)
+            median_importance = np.median(feature_importance[feature_importance > 0])
+            if median_importance > 0:
+                outlier_threshold = median_importance * 1000
+                has_outliers = np.any(feature_importance > outlier_threshold)
+
+                if has_outliers:
+                    logger.error(f"SHAP values for {group_name} contain extreme outliers:")
+                    logger.error(f"  Range: [{min_importance:.6e}, {max_importance:.6e}]")
+                    logger.error(f"  Median: {median_importance:.6e}, Threshold: {outlier_threshold:.6e}")
+                    outlier_features = [self.feature_names[i] for i, imp in enumerate(feature_importance)
+                                       if imp > outlier_threshold]
+                    logger.error(f"  Outlier features: {outlier_features}")
+                    raise ValueError(f"Numerical instability: extreme outliers detected in SHAP for {group_name}")
+
+            # Check if values are too small (all essentially zero)
+            if max_importance < 1e-10:
+                logger.warning(f"SHAP values for {group_name} are extremely small (max={max_importance:.2e})")
+                logger.warning(f"Falling back to permutation importance")
+                raise ValueError("SHAP values too small")
+
+            logger.info(f"✓ SHAP analysis completed for {group_name}")
+            logger.info(f"  Feature importance range: [{min_importance:.6e}, {max_importance:.6e}]")
+            logger.info(f"  Median importance: {median_importance:.6e}")
             return feature_importance
             
         except Exception as e:
@@ -593,37 +715,56 @@ class EnhancedFeatureAnalyzer:
     def _permutation_fallback(self, X_group):
         """Fallback to permutation importance if SHAP fails."""
         try:
-            # Quick permutation importance as fallback
-            sample_size = min(30, len(X_group))
-            X_subset = X_group[:sample_size]
-            
-            # Simple baseline score
+            logger.info("Using permutation importance as fallback...")
+
+            # Use larger sample for permutation (it's fast)
+            sample_size = min(100, len(X_group))
+            if len(X_group) > sample_size:
+                np.random.seed(42)
+                indices = np.random.choice(len(X_group), sample_size, replace=False)
+                X_subset = X_group[indices]
+            else:
+                X_subset = X_group
+
+            # Baseline predictions
             baseline_preds = self.model.predict(X_subset, verbose=0).flatten()
-            baseline_score = np.mean(baseline_preds)
-            
+            baseline_preds = self.apply_temperature_scaling(baseline_preds)
+            baseline_var = np.var(baseline_preds)  # Use variance as metric
+
             importance_scores = []
-            for i in range(len(self.feature_names)):
+            for i, feature_name in enumerate(self.feature_names):
                 X_corrupted = X_subset.copy()
+                # Shuffle the feature across all timesteps
+                np.random.seed(42 + i)  # Different seed per feature for reproducibility
                 np.random.shuffle(X_corrupted[:, :, i])
-                
+
                 corrupted_preds = self.model.predict(X_corrupted, verbose=0).flatten()
-                corrupted_score = np.mean(corrupted_preds)
-                
-                importance = abs(baseline_score - corrupted_score)
+                corrupted_preds = self.apply_temperature_scaling(corrupted_preds)
+                corrupted_var = np.var(corrupted_preds)
+
+                # Importance as change in prediction variance
+                importance = abs(baseline_var - corrupted_var)
                 importance_scores.append(importance)
-            
-            return np.array(importance_scores)
-            
+
+            importance_array = np.array(importance_scores)
+            logger.info(f"✓ Permutation importance completed")
+            logger.info(f"  Range: [{np.min(importance_array):.6e}, {np.max(importance_array):.6e}]")
+
+            return importance_array
+
         except Exception as e:
-            logger.error(f"Fallback permutation also failed: {e}")
+            logger.error(f"Permutation fallback also failed: {e}")
+            # Return zeros as last resort
+            logger.warning("Returning zero importance for all features")
             return np.zeros(len(self.feature_names))
 
     def _analyze_by_study_group_permutation(self, X_test, y_test):
         """Original permutation-based analysis as backup."""
         logger.info(" Using permutation importance for study group analysis...")
-        
+
         predictions = self.model.predict(X_test, verbose=0).flatten()
-        
+        predictions = self.apply_temperature_scaling(predictions)  # Apply calibration
+
         # Separate by predicted class (as proxy for study group)
         healthy_mask = predictions > 0.5
         prediabetic_mask = predictions <= 0.5
@@ -715,7 +856,7 @@ class EnhancedFeatureAnalyzer:
         
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         logger.info(f"Feature importance comparison saved to: {save_path}")
-        plt.show()
+        # plt.show()  # Non-interactive mode
         
         return fig
     
@@ -724,43 +865,103 @@ class EnhancedFeatureAnalyzer:
         if not group_results:
             logger.warning("No group results to plot")
             return
-        
-        fig, ax = plt.subplots(figsize=(12, 8))
-        
-        # Create grouped bar chart
+
+        logger.info("=" * 80)
+        logger.info("PLOT STUDY GROUP COMPARISON - DEBUG INFO")
+        logger.info("=" * 80)
+        logger.info(f"Number of groups: {len(group_results)}")
+
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # Create grouped bar chart with improved visibility
         x = np.arange(len(self.feature_names))
-        width = 0.35
-        
-        group_names = list(group_results.keys())
-        colors = ['skyblue', 'lightcoral']
-        
+        n_groups = len(group_results)
+
+        # Calculate width based on number of groups
+        total_width = 0.7  # Total width for all bars at each position
+        width = total_width / n_groups if n_groups > 0 else 0.35
+        logger.info(f"Bar width: {width:.4f} (total_width={total_width}, n_groups={n_groups})")
+
+        # More distinct colors with better contrast
+        colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12']  # Blue, Red, Green, Orange
+
+        # Check for data quality issues
+        all_values = np.concatenate([imp for imp in group_results.values()])
+        max_val = np.max(all_values)
+        median_val = np.median(all_values[all_values > 0]) if np.any(all_values > 0) else 0
+
+        # Detect if we have extreme outliers that would make the plot unreadable
+        if median_val > 0 and max_val > median_val * 1000:
+            logger.warning("Extreme outliers detected in group comparison - some groups may have failed")
+            logger.warning("Consider using permutation importance for all groups instead")
+
+        # Plot each group with proper offset
         for i, (group_name, importance) in enumerate(group_results.items()):
-            offset = width * (i - 0.5)
-            bars = ax.bar(x + offset, importance, width, 
-                        label=group_name.replace('_', ' '), color=colors[i % len(colors)])
-        
-        ax.set_xlabel('Features')
-        
-        # Update ylabel and title to indicate SHAP
+            # Calculate offset to center the group of bars
+            offset = width * (i - n_groups / 2 + 0.5)
+
+            logger.info(f"\nGroup {i+1}: {group_name}")
+            logger.info(f"  Offset: {offset:.4f}")
+            logger.info(f"  Importance shape: {importance.shape}")
+            logger.info(f"  Importance values:")
+            for feat_idx, (feat_name, imp_value) in enumerate(zip(self.feature_names, importance)):
+                logger.info(f"    {feat_name:25s}: {imp_value:10.6e}")
+            logger.info(f"  Min value: {np.min(importance):.6e}")
+            logger.info(f"  Max value: {np.max(importance):.6e}")
+            logger.info(f"  Mean value: {np.mean(importance):.6e}")
+            logger.info(f"  Median value: {np.median(importance):.6e}")
+
+            bars = ax.bar(x + offset, importance, width,
+                        label=group_name.replace('_', ' '),
+                        color=colors[i % len(colors)],
+                        alpha=0.8,
+                        edgecolor='black',
+                        linewidth=0.5)
+
+        ax.set_xlabel('Features', fontsize=12, fontweight='bold')
+
+        # Update ylabel and title to indicate SHAP with note about fallback
         method_used = "SHAP" if SHAP_AVAILABLE else "Permutation"
-        ax.set_ylabel(f'{method_used} Feature Importance')
-        ax.set_title(f'{method_used} Feature Importance by Study Group\n(Model Prediction Confidence)')
-        
+        ax.set_ylabel(f'{method_used} Feature Importance', fontsize=12, fontweight='bold')
+        ax.set_title(f'{method_used} Feature Importance by Study Group\n(Model Prediction Confidence; fallback to permutation if SHAP fails)',
+                    fontsize=14, fontweight='bold', pad=20)
+
         ax.set_xticks(x)
-        ax.set_xticklabels(self.feature_names, rotation=45, ha='right')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        
+        ax.set_xticklabels(self.feature_names, rotation=45, ha='right', fontsize=10)
+        ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        # Add subtle background
+        ax.set_facecolor('#f8f9fa')
+
+        # Fix y-axis to include negative values (SHAP can be negative)
+        logger.info(f"\nY-Axis Calculation:")
+        logger.info(f"  All values shape: {all_values.shape}")
+        logger.info(f"  Global min: {np.min(all_values):.6e}")
+        logger.info(f"  Global max: {np.max(all_values):.6e}")
+        logger.info(f"  Global median: {median_val:.6e}")
+
+        y_min = min(0, np.min(all_values) * 1.1)  # 10% padding below min
+        y_max = np.max(all_values) * 1.1  # 10% padding above max
+
+        logger.info(f"  Y-axis min (with padding): {y_min:.6e}")
+        logger.info(f"  Y-axis max (with padding): {y_max:.6e}")
+
+        ax.set_ylim(y_min, y_max)
+
+        # Add a horizontal line at y=0 for reference
+        ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.3)
+
         plt.tight_layout()
-        
+
         # Auto-save to model folder if no path specified
         if save_path is None:
             save_path = os.path.join(self.models_dir, 'study_group_comparison.png')
-        
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        logger.info(f"Study group comparison ({method_used}) saved to: {save_path}")
-        plt.show()
-        
+
+        plt.savefig(save_path, dpi=300, bbox_inches='tight', facecolor='white')
+        logger.info(f"\nPlot saved to: {save_path}")
+        logger.info("=" * 80)
+
         return fig
     
     def create_correlation_matrix(self, results):
@@ -785,7 +986,7 @@ class EnhancedFeatureAnalyzer:
         save_path = os.path.join(self.models_dir, 'importance_method_correlation.png')
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         logger.info(f" Method correlation matrix saved to: {save_path}")
-        plt.show()
+        # plt.show()  # Non-interactive mode
         
         return correlation_matrix
     
@@ -804,7 +1005,7 @@ class EnhancedFeatureAnalyzer:
         plt.legend(loc="lower right")
         plt.grid(True, alpha=0.3)
         plt.savefig(f'{self.models_dir}/publication_roc_curve.png', dpi=300, bbox_inches='tight')
-        plt.show()
+        # plt.show()  # Non-interactive mode
         
         # Precision-Recall Curve
         plt.figure(figsize=(8, 6))
@@ -822,7 +1023,7 @@ class EnhancedFeatureAnalyzer:
         save_path = os.path.join(self.models_dir, 'publication_pr_curve.png')
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         logger.info(f"Publication PR curve saved to: {save_path}")
-        plt.show()
+        # plt.show()  # Non-interactive mode
         
         # Enhanced Confusion Matrix
         cm = eval_results['confusion_matrix']
@@ -849,7 +1050,7 @@ class EnhancedFeatureAnalyzer:
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         logger.info(f" Enhanced confusion matrix saved to: {save_path}")
-        plt.show()
+        # plt.show()  # Non-interactive mode
     
     def create_research_summary_tables(self, eval_results, all_results):
         """Create comprehensive research summary tables."""
@@ -1001,19 +1202,24 @@ def main():
         print("All files ready for research paper!")
         
         # Show usage instructions
-        print(f"\ USAGE INSTRUCTIONS:")
+        print(f"USAGE INSTRUCTIONS:")
         print(f"   Automatic (latest): python {os.path.basename(__file__)}")
         print(f"   Manual: python {os.path.basename(__file__)} model_20250729_143022")
         
     except Exception as e:
         logger.error(f"Enhanced analysis failed: {e}")
-        print("\n Analysis failed. Please ensure:")
+        print("\n❌ Analysis failed. Please ensure:")
         print("1. Model folder exists with required files:")
-        print("   • best_model.keras (or lstm_binary_model.keras)")
+        print("   • production_model/best_model.keras")
+        print("   • production_model/global_threshold.json")
+        print("   • production_model/temperature_scaler.json")
+        print("   • production_model/feature_scaler.npz")
+        print("   • held_out_test/held_out_test_indices.npy")
         print("   • X_lstm.npy, y_lstm_binary.npy")
-        print("2. Required packages: tensorflow, sklearn, matplotlib, seaborn")
-        print("3. Optional packages: shap, lime (for full analysis)")
-        print("4. Sufficient memory for computations")
+        print("2. Model trained with updated pipeline (use_held_out_test=True)")
+        print("3. Required packages: tensorflow, sklearn, matplotlib, seaborn")
+        print("4. Optional packages: shap, lime (for full analysis)")
+        print("5. Sufficient memory for computations")
         print(f"\nUsage: python {os.path.basename(__file__)} [model_folder_name]")
 
 

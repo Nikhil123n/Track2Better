@@ -10,3 +10,5 @@ tslearn
 scipy
 shap
 lime
+kneed
+statsmodels
