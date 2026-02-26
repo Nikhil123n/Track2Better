@@ -1,0 +1,253 @@
+{
+    "object_id": "https://biocomputeobject.org/HIVE_000006/DRAFT",
+    "spec_version": "https://w3id.org/ieee/ieee-2791-schema/2791object.json",
+    "etag": "",
+    "provenance_domain": {
+        "name": "Predictmod_Track2Better",
+        "version": "2.0",
+        "license": "https://spdx.org/licenses/CC-BY-4.0.html",
+        "created": "2026-02-09T02:07:32",
+        "modified": "2026-02-26T00:00:00",
+        "derived_from": "",
+        "contributors": [
+            {
+                "name": "Nikhil Arethiya",
+                "affiliation": "George Washington University",
+                "email": "n.arethiya@gwu.edu",
+                "contribution": [
+                    "createdBy"
+                ],
+                "orcid": ""
+            },
+            {
+                "name": "Patrick McNeely",
+                "affiliation": "George Washington University",
+                "email": "pmcneely@email.gwu.edu",
+                "contribution": [
+                    "createdBy"
+                ],
+                "orcid": ""
+            },
+            {
+                "name": "Urnisha Bhuiyan",
+                "affiliation": "George Washington University",
+                "email": "sbhuiyan28@email.gwu.edu",
+                "contribution": [
+                    "createdBy"
+                ],
+                "orcid": ""
+            },
+            {
+                "name": "Lori Krammer",
+                "affiliation": "George Washington University",
+                "email": "lorikrammer@email.gwu.edu",
+                "contribution": [
+                    "createdBy"
+                ],
+                "orcid": ""
+            }
+        ],
+        "review": []
+    },
+    "usability_domain": [
+        "This pipeline is intended to support biomedical researchers, data scientists, and clinical informaticians interested in: Extracting true responders (true_healthy participants) from large-scale continuous glucose monitoring (CGM) datasets, Refining noisy labels (e.g., AI-READI "healthy" study group) using data-driven clustering, Classifying glucose dynamics using supervised learning (e.g., XGBoost) and time-series deep learning (e.g., Conv+BiLSTM) and Evaluating intervention efficacy or natural remission in metabolic states by detecting patterns resembling healthy glucose regulation."
+    ],
+    "description_domain": {
+        "keywords": [
+            "python",
+            "machine learning",
+            "Continuous Glucose Monitoring (CGM)"
+        ],
+        "xref": [],
+        "platform": [
+            "VS Code"
+        ],
+        "pipeline_steps": [
+            {
+                "step_number": 1,
+                "name": "model evaluation",
+                "description": "Runs inference on a new participant's 7-day CGM time-series using a pre-trained Conv+BiLSTM model with temperature scaling. Classifies participants into Pre-Diabetes, Uncertain (OGTT recommended), or Healthy categories using dynamic confidence thresholds.",
+                "version": "2.0",
+                "input_list": [
+                    {
+                        "filename": "best_model.keras",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/best_model.keras",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "feature_scaler.npz",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/feature_scaler.npz",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "confidence_thresholds.json",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/confidence_thresholds.json",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "global_threshold.json",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/global_threshold.json",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "temperature_scaler.json",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/temperature_scaler.json",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "training_config.json",
+                        "access_time": "2026-02-09T02:07:32.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/training_config.json",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "inference.py",
+                        "access_time": "2026-02-26T00:00:00.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/inference.py",
+                        "sha1_checksum": ""
+                    },
+                    {
+                        "filename": "test_set.csv",
+                        "access_time": "2026-02-26T00:00:00.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/test_set.csv",
+                        "sha1_checksum": ""
+                    }
+                ],
+                "output_list": [
+                    {
+                        "filename": "prediction.txt",
+                        "access_time": "2026-02-26T00:00:00.000Z",
+                        "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better",
+                        "sha1_checksum": ""
+                    }
+                ]
+            }
+        ]
+    },
+    "parametric_domain": [],
+    "io_domain": {
+        "input_subdomain": [
+            {
+                "uri": {
+                    "filename": "best_model.keras",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/best_model.keras",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "feature_scaler.npz",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/feature_scaler.npz",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "confidence_thresholds.json",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/confidence_thresholds.json",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "global_threshold.json",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/global_threshold.json",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "temperature_scaler.json",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/temperature_scaler.json",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "training_config.json",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/training_config.json",
+                    "access_time": "2026-02-09T02:07:32.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "inference.py",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/inference.py",
+                    "access_time": "2026-02-26T00:00:00.000Z"
+                }
+            },
+            {
+                "uri": {
+                    "filename": "test_set.csv",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better/test_set.csv",
+                    "access_time": "2026-02-26T00:00:00.000Z"
+                }
+            }
+        ],
+        "output_subdomain": [
+            {
+                "mediatype": "txt",
+                "uri": {
+                    "filename": "prediction.txt",
+                    "uri": "https://github.com/GW-HIVE/PredictMod/blob/main/flask_backend/models/Predictmod_Track2Better",
+                    "access_time": "2026-02-26T00:00:00.000Z"
+                }
+            }
+        ]
+    },
+    "execution_domain": {
+        "script": [],
+        "script_driver": "",
+        "software_prerequisites": [
+            {
+                "name": "Python",
+                "version": "3.11.13",
+                "uri": {
+                    "filename": "",
+                    "uri": "https://www.python.org/",
+                    "access_time": "2026-02-26T00:00:00.000Z",
+                    "sha1_checksum": ""
+                }
+            },
+            {
+                "name": "pandas",
+                "version": "2.0.0",
+                "uri": {
+                    "filename": "",
+                    "uri": "https://pandas.pydata.org/",
+                    "access_time": "2026-02-26T00:00:00.000Z",
+                    "sha1_checksum": ""
+                }
+            },
+            {
+                "name": "numpy",
+                "version": "1.24.0",
+                "uri": {
+                    "filename": "",
+                    "uri": "https://numpy.org/",
+                    "access_time": "2026-02-26T00:00:00.000Z",
+                    "sha1_checksum": ""
+                }
+            },
+            {
+                "name": "tensorflow",
+                "version": "2.12.0",
+                "uri": {
+                    "filename": "",
+                    "uri": "https://www.tensorflow.org/",
+                    "access_time": "2026-02-26T00:00:00.000Z",
+                    "sha1_checksum": ""
+                }
+            }
+        ],
+        "external_data_endpoints": [],
+        "environment_variables": {}
+    },
+    "extension_domain": [],
+    "error_domain": {}
+}
