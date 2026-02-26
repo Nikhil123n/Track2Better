@@ -158,13 +158,19 @@ python "time_series_lstm_analyze_model v2.py"
 
 ---
 
-## Team Members
+## Version Tags
 
-| Name                    | GitHub Username  |
-|-------------------------|------------------|
-| Nikhil Arethiya         | Nikhil123n       |
-| Prakruthi Koteshwar     | Prakruthi19      |
-| Aishwarya Sajjan        | aishwaryasajjan77 |
+This repository uses Git tags to mark important milestones:
+
+- **`v1.0-manuscript`** - Complete research codebase at manuscript submission (main branch)
+  - Full training pipeline and analysis tools
+  - Model: model_20260209_020732
+  - Test Accuracy: 84%, ROC-AUC: 0.932
+  
+- **`v1.0-inference`** - Production-ready inference package (inference-standalone branch)
+  - Self-contained deployment with pre-trained model
+  - BioCompute Object (BCO) metadata included
+  - Clone: `git clone --branch v1.0-inference https://github.com/Nikhil123n/Track2Better.git`
 
 ---
 
