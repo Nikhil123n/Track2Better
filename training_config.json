@@ -1,0 +1,18 @@
+{
+  "architecture": "Conv+BiLSTM",
+  "l2_reg": 0.001,
+  "lstm_units_1": 32,
+  "lstm_units_2": 16,
+  "dense_units": 16,
+  "dropout_rate": 0.3,
+  "batch_size": 16,
+  "epochs": 30,
+  "use_conv_frontend": true,
+  "conv_filters_1": 32,
+  "conv_filters_2": 64,
+  "lstm_bidirectional": true,
+  "use_class_weights": true,
+  "use_temperature_scaling": true,
+  "random_seed": 42,
+  "trained_on_samples": 398
+}

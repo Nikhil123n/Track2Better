@@ -1,0 +1,10 @@
+# CGM Pre-Diabetes Detection - Inference Requirements
+# Minimal dependencies for production inference only
+
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+tensorflow>=2.12.0
+
+# Optional: For better performance
+# tensorflow-cpu>=2.12.0  # Use this instead of tensorflow if no GPU needed

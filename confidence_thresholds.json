@@ -1,0 +1,13 @@
+{
+  "confidence_low_threshold": 0.29459588050842284,
+  "confidence_high_threshold": 0.5945958805084228,
+  "computed_from_global_threshold": 0.37459588050842285,
+  "margin_low": 0.08,
+  "margin_high": 0.22,
+  "note": "Model predicts probability of Class 1 (CGM-Healthy). Higher prob = healthier.",
+  "zone_definitions": {
+    "zone1_high_conf_prediabetes": "prob < 0.2946",
+    "zone2_uncertain_needs_ogtt": "0.2946 <= prob < 0.5946",
+    "zone3_high_conf_healthy": "prob >= 0.5946"
+  }
+}

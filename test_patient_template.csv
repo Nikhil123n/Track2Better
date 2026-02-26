@@ -1,0 +1,33 @@
+# Sample Patient CSV Template
+# 
+# This is a template showing the required CSV format for inference.
+# Replace this file with your actual patient CGM data.
+#
+# REQUIREMENTS:
+# - Exactly 2138 rows (one header + 2138 data rows)
+# - One participant only
+# - Time intervals of 5 minutes
+# - Continuous sequence (no gaps)
+#
+# COLUMNS:
+# - participant_id: Unique patient identifier (string or int)
+# - time_index: Sequential index from 0 to 2137
+# - time: Time of day in HH:MM:SS format
+# - blood_glucose_value: CGM reading in mg/dL (continuous glucose monitor)
+#
+# EXAMPLE USAGE:
+# python predict_patient.py --csv test_patient.csv --model ../models/model_20260208_200152/production_model
+#
+# Note: This file contains only 10 sample rows. Your actual file must have 2138 rows.
+
+participant_id,time_index,time,blood_glucose_value
+P001,0,00:00:00,98.5
+P001,1,00:05:00,97.2
+P001,2,00:10:00,96.8
+P001,3,00:15:00,95.4
+P001,4,00:20:00,94.9
+P001,5,00:25:00,95.1
+P001,6,00:30:00,96.3
+P001,7,00:35:00,97.8
+P001,8,00:40:00,99.2
+P001,9,00:45:00,100.5
