@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import os
 import logging
 
-from paths import LOG_DIR, CLEANED_DATA_PATH  # we defined this earlier in paths.py
+from paths import LOG_DIR, CLEANED_DATA_PATH, PARTICIPANTS_DATA_PATH  # we defined this earlier in paths.py
 
 # Configure logging
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -66,6 +66,61 @@ def get_flatten_dict_from_path(pid, dfm, PILOT_ROOT_DATA_PATH):
     return [flatten_json(obs) for obs in data.get('body', {}).get('cgm', [])]
 
 
+# Helper Function: Generate low_high_counts.csv dynamically if missing
+def generate_low_high_counts(manifest_path, pilot_data_root, output_csv_path):
+    """Scan all participants to generate the low/high glucose reading counts."""
+    logging.info(f"{output_csv_path} not found. Generating it now from raw JSON files...")
+    dfm = pd.read_csv(manifest_path, sep='\t')
+    
+    # We want to process all participants listed in the manifest
+    pids = dfm['participant_id'].unique()
+    low_high_counts = []
+    
+    for pid in pids:
+        glucose_row = dfm[dfm['participant_id'] == pid]['glucose_filepath'].values
+        if len(glucose_row) == 0:
+            continue
+        
+        file_path = os.path.join(pilot_data_root, glucose_row[0])
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+            
+        cgm_records = data.get('body', {}).get('cgm', [])
+        if not cgm_records:
+            continue
+            
+        # Count Low and High flags
+        low_count = sum(1 for record in cgm_records if 'blood_glucose' in record and record['blood_glucose']['value'] == 'Low')
+        high_count = sum(1 for record in cgm_records if 'blood_glucose' in record and record['blood_glucose']['value'] == 'High')
+        
+        # Extract start and end date times
+        try:
+            start_date_time = cgm_records[0]['effective_time_frame']['time_interval']['start_date_time']
+            end_date_time = cgm_records[-1]['effective_time_frame']['time_interval']['end_date_time']
+        except (KeyError, IndexError):
+            start_date_time = ""
+            end_date_time = ""
+            
+        glucose_level_record_count = len(cgm_records)
+        
+        low_high_counts.append({
+            'participant_id': pid, 
+            'Low': low_count, 
+            'High': high_count, 
+            'start_date_time': start_date_time, 
+            'end_date_time': end_date_time,
+            'glucose_level_record_count': glucose_level_record_count
+        })
+
+    # Save to CSV
+    df_low_high_counts = pd.DataFrame(low_high_counts)
+    os.makedirs(os.path.dirname(output_csv_path), exist_ok=True)
+    df_low_high_counts.to_csv(output_csv_path, index=False)
+    logging.info(f"Successfully generated and saved counts to {output_csv_path}")
+
 # Main Function: Extract and Curate Batches
 def extract_and_curate_batches(MANIFEST_PATH, PILOT_ROOT_DATA_PATH, OUTPUT_PATH, batch_size=100, min_records=2138, participant_filter="valid"):
     """
@@ -84,8 +139,11 @@ def extract_and_curate_batches(MANIFEST_PATH, PILOT_ROOT_DATA_PATH, OUTPUT_PATH,
     # Load Required Files
     dfm = pd.read_csv(MANIFEST_PATH, sep='\t')
     csv_path_low_high_counts = os.path.join(CLEANED_DATA_PATH, "low_high_counts.csv")    
+    if not os.path.exists(csv_path_low_high_counts):
+        generate_low_high_counts(MANIFEST_PATH, PILOT_ROOT_DATA_PATH, csv_path_low_high_counts)
+        
     df_low_high_counts = pd.read_csv(csv_path_low_high_counts)
-    df_participants = pd.read_csv(os.path.join(PILOT_ROOT_DATA_PATH, "participants.tsv"), sep='\t')
+    df_participants = pd.read_csv(PARTICIPANTS_DATA_PATH, sep='\t')
 
     # Filter Participants with Valid Records
     if participant_filter == "valid":
