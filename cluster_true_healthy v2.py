@@ -817,7 +817,7 @@ def compute_participant_metrics():
     # === STEP 1: LOAD METADATA ===
     logging.info("Loading manifest and participant metadata.")
     dfm = pd.read_csv(MANIFEST_PATH, sep='\t')
-    participants_df = pd.read_csv(PARTICIPANTS_DATA_PATH)
+    participants_df = pd.read_csv(PARTICIPANTS_DATA_PATH, sep='\t')
     participants_df.columns = participants_df.columns.str.strip()
 
     # === STEP 2: EXTRACT METRICS FOR EACH PARTICIPANT ===
@@ -842,8 +842,8 @@ def compute_participant_metrics():
             if record_count < 2138:
                 continue
 
-            # Sort the values by timestamp and take the first 2138 records for each participant id's
-            data = df[df['participant_id'] == pid].sort_values('timestamp').head(2138)
+            # Sort the values by time_index and take the first 2138 records for each participant id's
+            data = df[df['participant_id'] == pid].sort_values('time_index').head(2138)
             glucose = data['blood_glucose_value'].values
             if len(glucose) == 0:
                 continue
