@@ -19,7 +19,7 @@ LOG_DIR = os.path.join(PROJECT_ROOT, "logs")
 
 # Important files
 MANIFEST_PATH = os.path.join(WEARABLE_BG_DIR, "manifest.tsv")
-PARTICIPANTS_DATA_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "participants.csv")
+PARTICIPANTS_DATA_PATH = os.path.join(PILOT_ROOT_DATA_PATH, "participants.tsv")
 SUMMARY_PATH = os.path.join(CLEANED_DATA_PATH, "summarized_metrics_all_participants.csv") # used by xgboost_relabel_truehealthy
 
 # Output / derived directories
