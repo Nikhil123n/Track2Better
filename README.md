@@ -71,8 +71,6 @@ To properly use this pipeline with the original dataset, your local `dataset/` d
 2. `dataset/wearable_blood_glucose/continuous_glucose_monitoring/dexcom_g6/` (containing all the raw participant JSON subdirectories)
 3. `dataset/clinical_and_metadata/participants.tsv`
 
-*Note: Earlier iterations of this code expected a `participants.csv` file. The original dataset ships with `participants.tsv` and the codebase has now been refactored to consume the `.tsv` file exclusively.*
-
 ### Auto-Generated Counts 
 The codebase utilizes a summary file called `low_high_counts.csv` to rapidly identify the total records and valid flags per participant. If this file does not exist when you run `cgm_batch_extraction.py`, the script will **automatically scan all 1,067 raw JSON files** to count records, detect Low/High bounds, extract matching start/end timestamps, and generate it dynamically. You do not manually need to insert a `low_high_counts.csv` file into the `dataset/` directory.
 
@@ -161,7 +159,7 @@ python lstm_pipeline_v1.py
 
 ### 6. Analyze Trained Model
 ```bash
-python "time_series_lstm_analyze_model v2.py"
+python "time_series_lstm_analyze_model v3.py"
 ```
 
 
