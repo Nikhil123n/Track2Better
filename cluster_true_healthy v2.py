@@ -204,6 +204,7 @@ def save_plot_2_traditional_clusters(X_scaled, labels):
     logging.info("Saved: 02_traditional_clusters.png")
 
 
+# Pat - this function represents Figure 1 (B)
 def save_plot_3_pca_view(X_scaled, labels, n_clusters, true_healthy_cluster_id):
     """Save Plot 3: PCA View with different colors for each cluster"""
     plt.figure(figsize=(12, 8))
@@ -240,9 +241,11 @@ def save_plot_3_pca_view(X_scaled, labels, n_clusters, true_healthy_cluster_id):
                 linewidth=2 if i == true_healthy_cluster_id else 1
             )
     
-    plt.title('PCA View - All Clusters with Different Colors', fontsize=16, fontweight='bold')
-    plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)', fontsize=12)
-    plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)', fontsize=12)
+    plt.title('PCA View - All Clusters with Different Colors', fontsize=20, fontweight='bold')
+    plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)', fontsize=16)
+    plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
     plt.legend(fontsize=12, loc='best')
     plt.grid(True, alpha=0.3)
     
@@ -257,7 +260,7 @@ def save_plot_3_pca_view(X_scaled, labels, n_clusters, true_healthy_cluster_id):
             textstr += f'{cluster_name}: {count} participants\n'
     
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-    plt.text(0.02, 0.98, textstr.strip(), transform=plt.gca().transAxes, fontsize=10,
+    plt.text(0.02, 0.98, textstr.strip(), transform=plt.gca().transAxes, fontsize=12,
              verticalalignment='top', bbox=props)
     
     plt.tight_layout()
@@ -558,6 +561,7 @@ def save_plot_9_silhouette_analysis(X_scaled, labels, n_clusters, true_healthy_c
     logging.info("Saved: 09_silhouette_analysis.png")
 
 
+# Pat - this function represents Figure 3 (A), (B), (C), & (D)
 def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
     """Save Plot 10: Enhanced Clinical Metrics Comparison"""
     labels = np.asarray(labels)
@@ -594,22 +598,23 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
     ax1.bar(x - width/2, th_means, width, label='CGM-Healthy', color='red', alpha=0.8)
     ax1.bar(x + width/2, other_means, width, label='Other Clusters', color='gray', alpha=0.6)
 
-    ax1.set_title('Core Clinical Metrics (Time-based)', fontsize=14, fontweight='bold')
-    ax1.set_xlabel('Metrics', fontsize=12)
-    ax1.set_ylabel('Percentage (%)', fontsize=12)
+    ax1.set_title('Core Clinical Metrics (Time-based)', fontsize=18, fontweight='bold')
+    ax1.set_xlabel('Metrics', fontsize=16)
+    ax1.set_ylabel('Percentage (%)', fontsize=16)
     ax1.set_xticks(x)
     ax1.set_xticklabels(['Time In Range\n(70-140)', 'Time Above Range\n(>140)', 'Time Below Range\n(<70)'])
-    ax1.legend(fontsize=10)
+    ax1.tick_params(axis='both', labelsize=14)
+    ax1.legend(fontsize=12)
     ax1.grid(True, alpha=0.3, axis='y')
 
     off = safe_offset(th_means, other_means)
     for i, (v1, v2) in enumerate(zip(th_means, other_means)):
         if np.isfinite(v1):
             ax1.text(i - width/2, v1 + off, f'{v1:.1f}%', ha='center', va='bottom',
-                        fontweight='bold', fontsize=10)
+                        fontweight='bold', fontsize=12)
         if np.isfinite(v2):
             ax1.text(i + width/2, v2 + off, f'{v2:.1f}%', ha='center', va='bottom',
-                        fontsize=10)
+                        fontsize=12)
 
     # ---------------------------------------------------
     # Subplot 2: Glucose Statistics
@@ -624,22 +629,23 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
     ax2.bar(x2 - width/2, th_glucose, width, label='CGM-Healthy', color='red', alpha=0.8)
     ax2.bar(x2 + width/2, other_glucose, width, label='Other Clusters', color='gray', alpha=0.6)
 
-    ax2.set_title('Glucose Statistics', fontsize=14, fontweight='bold')
-    ax2.set_xlabel('Metrics', fontsize=12)
-    ax2.set_ylabel('Values', fontsize=12)
+    ax2.set_title('Glucose Statistics', fontsize=18, fontweight='bold')
+    ax2.set_xlabel('Metrics', fontsize=16)
+    ax2.set_ylabel('Values', fontsize=16)
     ax2.set_xticks(x2)
     ax2.set_xticklabels(glucose_labels)
-    ax2.legend(fontsize=10)
+    ax2.tick_params(axis='both', labelsize=14)
+    ax2.legend(fontsize=12)
     ax2.grid(True, alpha=0.3, axis='y')
 
     off2 = safe_offset(th_glucose, other_glucose)
     for i, (v1, v2) in enumerate(zip(th_glucose, other_glucose)):
         if np.isfinite(v1):
             ax2.text(i - width/2, v1 + off2, f'{v1:.1f}', ha='center', va='bottom',
-                        fontweight='bold', fontsize=10)
+                        fontweight='bold', fontsize=12)
         if np.isfinite(v2):
             ax2.text(i + width/2, v2 + off2, f'{v2:.1f}', ha='center', va='bottom',
-                        fontsize=10)
+                        fontsize=12)
 
     # ---------------------------------------------------
     # Subplot 3: Advanced Glycemic Metrics
@@ -658,26 +664,27 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
         ax3.bar(x3 - width/2, th_adv, width, label='CGM-Healthy', color='red', alpha=0.8)
         ax3.bar(x3 + width/2, other_adv, width, label='Other Clusters', color='gray', alpha=0.6)
 
-        ax3.set_title('Advanced Glycemic Variability', fontsize=14, fontweight='bold')
-        ax3.set_xlabel('Metrics', fontsize=12)
-        ax3.set_ylabel('Values', fontsize=12)
+        ax3.set_title('Advanced Glycemic Variability', fontsize=18, fontweight='bold')
+        ax3.set_xlabel('Metrics', fontsize=16)
+        ax3.set_ylabel('Values', fontsize=16)
         ax3.set_xticks(x3)
         ax3.set_xticklabels(available_labels)
-        ax3.legend(fontsize=10)
+        ax3.tick_params(axis='both', labelsize=14)
+        ax3.legend(fontsize=12)
         ax3.grid(True, alpha=0.3, axis='y')
 
         off3 = safe_offset(th_adv, other_adv)
         for i, (v1, v2) in enumerate(zip(th_adv, other_adv)):
             if np.isfinite(v1):
                 ax3.text(i - width/2, v1 + off3, f'{v1:.2f}', ha='center', va='bottom',
-                            fontweight='bold', fontsize=10)
+                            fontweight='bold', fontsize=12)
             if np.isfinite(v2):
                 ax3.text(i + width/2, v2 + off3, f'{v2:.2f}', ha='center', va='bottom',
-                            fontsize=10)
+                            fontsize=12)
     else:
         ax3.text(0.5, 0.5, 'Advanced metrics\nnot available',
                     ha='center', va='center', transform=ax3.transAxes, fontsize=12)
-        ax3.set_title('Advanced Glycemic Variability', fontsize=14, fontweight='bold')
+        ax3.set_title('Advanced Glycemic Variability', fontsize=18, fontweight='bold')
 
     # ---------------------------------------------------
     # Subplot 4: CONGA Metrics (if available)
@@ -694,23 +701,24 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
         ax4.bar(x4 - width/2, th_conga, width, label='CGM-Healthy', color='red', alpha=0.8)
         ax4.bar(x4 + width/2, other_conga, width, label='Other Clusters', color='gray', alpha=0.6)
 
-        ax4.set_title('CONGA Metrics\n(Continuous Overlapping Net Glycemic Action)',
-                        fontsize=14, fontweight='bold')
-        ax4.set_xlabel('Metrics', fontsize=12)
-        ax4.set_ylabel('Values (mg/dL)', fontsize=12)
+        ax4.set_title('CONGA (Continuous Overlapping Net Glycemic Action)',
+            fontsize=18, fontweight='bold')
+        ax4.set_xlabel('Metrics', fontsize=16)
+        ax4.set_ylabel('Values (mg/dL)', fontsize=16)
         ax4.set_xticks(x4)
         ax4.set_xticklabels(conga_labels)
-        ax4.legend(fontsize=10)
+        ax4.tick_params(axis='both', labelsize=14)
+        ax4.legend(fontsize=12)
         ax4.grid(True, alpha=0.3, axis='y')
 
         off4 = safe_offset(th_conga, other_conga)
         for i, (v1, v2) in enumerate(zip(th_conga, other_conga)):
             if np.isfinite(v1):
                 ax4.text(i - width/2, v1 + off4, f'{v1:.1f}', ha='center', va='bottom',
-                            fontweight='bold', fontsize=10)
+                            fontweight='bold', fontsize=12)
             if np.isfinite(v2):
                 ax4.text(i + width/2, v2 + off4, f'{v2:.1f}', ha='center', va='bottom',
-                            fontsize=10)
+                            fontsize=12)
     else:
         # Same fallback table logic you had, but keep it consistent with masks
         ax4.axis('off')
@@ -751,11 +759,11 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
                 table[(i, 1)].set_facecolor('#ffcccc')
                 table[(i, 1)].set_text_props(weight='bold')
 
-            ax4.set_title('Clinical Metrics Summary', fontsize=14, fontweight='bold', pad=20)
+            ax4.set_title('Clinical Metrics Summary', fontsize=18, fontweight='bold', pad=20)
 
     # ---------------------------------------------------
-    fig.suptitle('Comprehensive Clinical Metrics Comparison\nCGM-Healthy vs Other Clusters',
-                    fontsize=16, fontweight='bold', y=0.95)
+    fig.suptitle('Comprehensive Clinical Metrics Comparison CGM-Healthy vs Other Clusters',
+                    fontsize=20, fontweight='bold', y=0.95)
 
     plt.tight_layout()
     plt.subplots_adjust(top=0.88)
@@ -764,6 +772,7 @@ def save_plot_10_clinical_metrics(labels, healthy_df, true_healthy_cluster_id):
     logging.info("Saved: 10_clinical_metrics.png")
 
 
+# Pat - this function represents Figure 1 (A)
 def save_plot_11_elbow_curve(X_scaled, chosen_k=None):
     """Save Plot 11: Elbow Curve for Optimal Clusters"""
     plt.figure(figsize=(10, 8))
@@ -776,9 +785,11 @@ def save_plot_11_elbow_curve(X_scaled, chosen_k=None):
 
     ks = list(range(1, 11))
     plt.plot(ks, inertia, marker='o', linewidth=2, markersize=8)
-    plt.title("Elbow Method for Optimal Number of Clusters", fontsize=16, fontweight='bold')
-    plt.xlabel("Number of Clusters", fontsize=12)
-    plt.ylabel("Inertia", fontsize=12)
+    plt.title("Elbow Method for Optimal Number of Clusters", fontsize=20, fontweight='bold')
+    plt.xlabel("Number of Clusters", fontsize=16)
+    plt.ylabel("Inertia", fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
     plt.grid(True, alpha=0.3)
 
     if chosen_k is not None:
@@ -1528,6 +1539,7 @@ def create_feature_explanation_table():
     logging.info("Feature engineering documentation saved")
     return feature_df
 
+# Pat - this function represents Figure 2 (A) and (B)
 def create_feature_importance_summary():
     """Create feature importance and correlation summary (hardened)."""
     os.makedirs(PLOTS_OUTPUT_DIR, exist_ok=True)
@@ -1550,28 +1562,40 @@ def create_feature_importance_summary():
         logging.warning(f"Not enough available features for correlation plot (found {len(available_features)}). Skipping.")
         return
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
 
     # --- Correlation heatmap (NaN-safe) ---
     corr_matrix = df[available_features].corr()
     corr_matrix = corr_matrix.replace([np.inf, -np.inf], np.nan).fillna(0)
 
-    sns.heatmap(
+    heat = sns.heatmap(
         corr_matrix,
         annot=True,
+        annot_kws={'fontsize': 12},
+        cmap='RdBu',
+        vmin=-1,
+        vmax=1,
         center=0,
         ax=ax1,
         square=True,
-        linewidths=0.5
+        linewidths=0.5,
+        cbar_kws={'label': 'Correlation'}
     )
-    ax1.set_title('Feature Correlation Matrix', fontsize=14, fontweight='bold')
+    ax1.set_title('Feature Correlation Matrix', fontsize=16, fontweight='bold')
+    ax1.tick_params(axis='both', labelsize=12)
+
+    cbar = heat.collections[0].colorbar
+    cbar.set_label('Correlation', fontsize=14)
+    cbar.ax.tick_params(labelsize=12)
 
     # --- Distribution by study group (KDE, variance-safe) ---
     if 'study_group' in df.columns:
         feature_to_plot = 'tir_percent' if 'tir_percent' in available_features else available_features[0]
 
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
         groups = df['study_group'].dropna().unique()[:4]
         for i, group in enumerate(groups):
+            color = colors[i % len(colors)]
             group_data = df.loc[df['study_group'] == group, feature_to_plot].dropna()
 
             # Must have enough points AND variance
@@ -1587,14 +1611,14 @@ def create_feature_importance_summary():
 
             x_min, x_max = group_data.min(), group_data.max()
             pad = (x_max - x_min) * 0.1 if x_max > x_min else 1.0
-            x_range = np.linspace(x_min - pad, x_max + pad, 100)
+            x_range = np.linspace(max(0, x_min - pad), min(100, x_max + pad), 300)
 
             density = kde(x_range)
 
-            ax2.plot(x_range, density, label=str(group), linewidth=2.5, alpha=0.8)
+            ax2.plot(x_range, density, label=str(group), linewidth=2.5, alpha=0.8, color=color)
 
             mean_val = group_data.mean()
-            ax2.axvline(mean_val, linestyle='--', alpha=0.6, linewidth=1.5)
+            ax2.axvline(mean_val, linestyle='--', alpha=0.6, linewidth=1.5, color=color)
 
             # annotate near the top
             max_density = float(np.nanmax(density)) if len(density) else 0.0
@@ -1603,17 +1627,19 @@ def create_feature_importance_summary():
                 xy=(mean_val, max_density * 0.8),
                 xytext=(5, 5),
                 textcoords='offset points',
-                fontsize=9,
-                fontweight='bold'
+                fontsize=12,
+                fontweight='bold',
+                color='black'
             )
 
-        ax2.set_xlabel(feature_to_plot.replace('_', ' ').title(), fontsize=12)
-        ax2.set_ylabel('Density', fontsize=12)
+        ax2.set_xlabel('Time in Range (%)', fontsize=14)
+        ax2.set_ylabel('Density', fontsize=14)
         ax2.set_title(
-            f'{feature_to_plot.replace("_", " ").title()} Distribution by Study Group\n(Line Plot with KDE)',
-            fontsize=14, fontweight='bold'
+            'Time in Range Distribution by Study Group',
+            fontsize=16, fontweight='bold'
         )
-        ax2.legend(fontsize=10)
+        ax2.tick_params(axis='both', labelsize=12)
+        ax2.legend(fontsize=12)
         ax2.grid(True, alpha=0.3)
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
