@@ -965,6 +965,7 @@ class ProductionModelAnalyzer:
     # ------------------------------------------------------------------
     # Plot methods (all saved to analysis/ subfolder, NO plt.show())
     # ------------------------------------------------------------------
+    # Pat - this function represents Figure 4 (C)    
     def _plot_publication_roc(self, eval_results: Dict) -> None:
         """Publication-quality ROC curve."""
         save_path = os.path.join(self.analysis_dir, 'publication_roc_curve.png')
@@ -975,15 +976,18 @@ class ProductionModelAnalyzer:
         plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Random Classifier')
         plt.xlim([0.0, 1.0])
         plt.ylim([0.0, 1.05])
-        plt.xlabel('False Positive Rate (1 - Specificity)')
-        plt.ylabel('True Positive Rate (Sensitivity)')
-        plt.title('Receiver Operating Characteristic (ROC) Curve\nCGM LSTM Binary Classification')
-        plt.legend(loc="lower right")
+        plt.xlabel('False Positive Rate (1 - Specificity)', fontsize=16)
+        plt.ylabel('True Positive Rate (Sensitivity)', fontsize=16)
+        plt.title('Receiver Operating Characteristic (ROC) Curve', fontsize=18, fontweight='bold')
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.legend(loc="lower right", fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
         logger.info(f"[PLOT] Publication ROC curve saved to: {save_path}")
 
+    # Pat - this function represents Figure 4 (D)
     def _plot_publication_pr(self, eval_results: Dict) -> None:
         """Publication-quality Precision-Recall curve."""
         save_path = os.path.join(self.analysis_dir, 'publication_pr_curve.png')
@@ -994,10 +998,12 @@ class ProductionModelAnalyzer:
         if eval_results.get('ppv', 0) > 0:
             plt.axhline(y=eval_results['ppv'], color='red', linestyle='--',
                         label=f'Baseline PPV = {eval_results["ppv"]:.3f}')
-        plt.xlabel('Recall (Sensitivity)')
-        plt.ylabel('Precision (PPV)')
-        plt.title('Precision-Recall Curve\nCGM LSTM Binary Classification')
-        plt.legend()
+        plt.xlabel('Recall (Sensitivity)', fontsize=16)
+        plt.ylabel('Precision (PPV)', fontsize=16)
+        plt.title('Precision-Recall Curve', fontsize=18, fontweight='bold')
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.legend(fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
@@ -1009,6 +1015,7 @@ class ProductionModelAnalyzer:
         Visualizer.plot_confusion_matrix(eval_results['confusion_matrix'], save_path=save_path)
         logger.info(f"[PLOT] Confusion matrix saved to: {save_path}")
 
+    # Pat - this function represents Figure 4 (A) and Figure 4 (B)
     def _plot_enhanced_confusion_matrix(self, eval_results: Dict) -> None:
         """Side-by-side raw + normalized confusion matrix."""
         save_path = os.path.join(self.analysis_dir, 'confusion_matrix_enhanced.png')
@@ -1018,19 +1025,23 @@ class ProductionModelAnalyzer:
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax1,
-                    xticklabels=['Pre-diabetes', 'CGM-Healthy'],
-                    yticklabels=['Pre-diabetes', 'CGM-Healthy'])
-        ax1.set_title('Confusion Matrix (Raw Counts)')
-        ax1.set_xlabel('Predicted Label')
-        ax1.set_ylabel('True Label')
+        heat1 = sns.heatmap(cm, annot=True, annot_kws={'fontsize': 12}, fmt='d', cmap='Blues', ax=ax1,
+                xticklabels=['Pre-diabetes', 'CGM-Healthy'],
+                yticklabels=['Pre-diabetes', 'CGM-Healthy'])
+        ax1.set_title('Confusion Matrix (Raw Counts)', fontsize=18, fontweight='bold')
+        ax1.set_xlabel('Predicted Label', fontsize=16)
+        ax1.set_ylabel('True Label', fontsize=16)
+        ax1.tick_params(axis='both', labelsize=14)
+        heat1.collections[0].colorbar.ax.tick_params(labelsize=12)
 
-        sns.heatmap(cm_norm, annot=True, fmt='.2%', cmap='Blues', ax=ax2,
-                    xticklabels=['Pre-diabetes', 'CGM-Healthy'],
-                    yticklabels=['Pre-diabetes', 'CGM-Healthy'])
-        ax2.set_title('Confusion Matrix (Row-Normalized)')
-        ax2.set_xlabel('Predicted Label')
-        ax2.set_ylabel('True Label')
+        heat2 = sns.heatmap(cm_norm, annot=True, annot_kws={'fontsize': 12}, fmt='.2%', cmap='Blues', ax=ax2,
+                xticklabels=['Pre-diabetes', 'CGM-Healthy'],
+                yticklabels=['Pre-diabetes', 'CGM-Healthy'])
+        ax2.set_title('Confusion Matrix (Row-Normalized)', fontsize=18, fontweight='bold')
+        ax2.set_xlabel('Predicted Label', fontsize=16)
+        ax2.set_ylabel('True Label', fontsize=16)
+        ax2.tick_params(axis='both', labelsize=14)
+        heat2.collections[0].colorbar.ax.tick_params(labelsize=12)
 
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -1127,6 +1138,7 @@ class ProductionModelAnalyzer:
         plt.close()
         logger.info(f"[PLOT] Study group comparison saved to: {save_path}")
 
+    # Pat - this function represents the figure 5    
     def _plot_study_group_by_true_label(self, study_group_results: Dict) -> None:
         """Feature importance (AUC Drop) grouped by true study group.
 
@@ -1175,12 +1187,13 @@ class ProductionModelAnalyzer:
             )
 
         # Axis labels and title
-        ax.set_xlabel('Features', fontsize=12)
-        ax.set_ylabel('Importance (AUC Drop)', fontsize=12)
-        ax.set_title('Feature Importance by Predicted Study Group', fontsize=14, fontweight='bold')
+        ax.set_xlabel('Features', fontsize=16)
+        ax.set_ylabel('Importance (AUC Drop)', fontsize=16)
+        ax.set_title('Feature Importance by Predicted Study Group', fontsize=18, fontweight='bold')
 
         ax.set_xticks(x)
-        ax.set_xticklabels(self.feature_names, rotation=45, ha='right', fontsize=10)
+        ax.set_xticklabels(self.feature_names, rotation=45, ha='right', fontsize=14)
+        ax.tick_params(axis='y', labelsize=14)
 
         # Dynamic y-axis to include negative values with padding
         all_vals = np.concatenate([v['importance'] for v in valid_groups.values()])
@@ -1194,7 +1207,7 @@ class ProductionModelAnalyzer:
         # Reference line at zero
         ax.axhline(y=0, color='black', linestyle='-', linewidth=0.8, alpha=0.4)
 
-        ax.legend(loc='upper right', framealpha=0.9, fontsize=11)
+        ax.legend(loc='upper right', framealpha=0.9, fontsize=12)
         ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
