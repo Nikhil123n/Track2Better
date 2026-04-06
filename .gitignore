@@ -24,6 +24,7 @@ logs/
 # Model artifacts / big outputs
 dataset/
 models/
+Readme/
 **/models/
 *.h5
 *.hdf5
